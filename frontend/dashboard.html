@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafetyLens AI | Dashboard</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="nav">
+        <a href="index.html">Live Monitor</a>
+        <a href="dashboard.html">Dashboard</a>
+      </div>
+      <h1>📊 Compliance Dashboard</h1>
+      <div class="grid">
+        <div class="panel">
+          <h2>Total Violations Today</h2>
+          <div class="stat" id="today-stat">0</div>
+        </div>
+        <div class="panel">
+          <h2>Violation Types</h2>
+          <ul id="types-list" style="font-size: 1.2rem"></ul>
+        </div>
+      </div>
+    </div>
+    <script>
+      async function loadStats() {
+        const res = await fetch("/api/stats");
+        const data = await res.json();
+        document.getElementById("today-stat").innerText = data.today;
+
+        const list = document.getElementById("types-list");
+        list.innerHTML = "";
+        data.by_type.forEach(([type, count]) => {
+          const li = document.createElement("li");
+          li.innerText = `${type}: ${count}`;
+          list.appendChild(li);
+        });
+      }
+      setInterval(loadStats, 2000); // Refresh every 2 seconds
+      loadStats();
+    </script>
+  </body>
+</html>

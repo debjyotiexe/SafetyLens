@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafetyLens</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script src="js/chart.umd.js"></script>
+  </head>
+  <body>
+    <div class="hazard"></div>
+    <header class="topbar">
+      <div class="logo">SAFETY<span>LENS</span></div>
+      <!-- <div class="tag">SITE OPS COMMAND</div> -->
+      <!-- <div class="tag">MODEL <b>YOLOv8n-CUSTOM</b></div> -->
+      <div class="spacer"></div>
+      <div class="tag" id="fps-tag">-- FPS</div>
+      <div class="tag" id="lat-tag">-- ms</div>
+      <div class="led"></div>
+      <div class="clock" id="clock">--:--:--</div>
+    </header>
+
+    <main class="grid">
+      <!-- LEFT -->
+      <aside>
+        <div class="panel">
+          <h3>// SITE STATUS</h3>
+          <div id="threat" class="threat nominal">NOMINAL</div>
+          <div class="kpi">
+            <span class="val amber" id="k-workers">0</span
+            ><span class="lbl">WORKERS IN VIEW</span>
+          </div>
+          <div class="kpi">
+            <span class="val red" id="k-active">0</span
+            ><span class="lbl">ACTIVE VIOLATIONS</span>
+          </div>
+          <div class="kpi">
+            <span class="val" id="k-today">0</span
+            ><span class="lbl">VIOLATIONS TODAY</span>
+          </div>
+          <div class="kpi">
+            <span class="val" id="k-total">0</span
+            ><span class="lbl">TOTAL LOGGED</span>
+          </div>
+        </div>
+        <div class="panel" style="margin-top: 14px">
+          <h3>// INPUT SOURCE</h3>
+          <div class="controls">
+            <button class="btn" onclick="startWebcam()">WEBCAM</button>
+            <button
+              class="btn"
+              onclick="document.getElementById('file-input').click()"
+            >
+              VIDEO FILE
+            </button>
+            <button class="btn" onclick="startScreen()">SCREEN</button>
+            <button class="btn active" onclick="toggleSound(this)">
+              SOUND: ON
+            </button>
+            <button class="btn danger" onclick="resetAll()">⟲ RESET</button>
+            <input type="file" id="file-input" accept="video/*" hidden />
+          </div>
+        </div>
+      </aside>
+
+      <!-- CENTER -->
+      <section>
+        <div class="feedwrap">
+          <video id="webcam" autoplay playsinline muted loop></video>
+          <canvas id="overlay" width="960" height="540"></canvas>
+          <div class="hud">
+            <div class="corner tl"></div>
+            <div class="corner tr"></div>
+            <div class="corner bl"></div>
+            <div class="corner br"></div>
+            <div class="scanline"></div>
+            <div class="feedlabel">
+              <span class="rec"></span>CAM_01 // LIVE FEED
+            </div>
+            <!-- <div class="feedlabel right">GPU: RTX 4060 // CUDA</div> -->
+          </div>
+        </div>
+        <div class="chartrow">
+          <div class="panel">
+            <h3>// VIOLATIONS BY HOUR</h3>
+            <canvas id="chart-hourly" height="110"></canvas>
+          </div>
+          <div class="panel">
+            <h3>// THREAT MIX</h3>
+            <canvas id="chart-types" height="110"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT -->
+      <aside>
+        <!-- <div class="panel">
+          <h3>// LIVE EVENT LOG</h3>
+          <div id="log" class="log"></div>
+        </div> -->
+        <!-- margin-top:14px -->
+        <div class="panel" style="margin-top: 0px">
+          <h3>// CAUGHT ON CAMERA</h3>
+          <div id="gallery" class="gallery"></div>
+        </div>
+      </aside>
+    </main>
+    <div class="hazard"></div>
+    <script src="js/live.js"></script>
+  </body>
+</html>
