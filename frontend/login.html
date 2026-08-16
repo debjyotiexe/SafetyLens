@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafetyLens // Access</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="hazard"></div>
+    <div class="login-wrap">
+      <div class="login-box">
+        <div class="logo">SAFETY<span>LENS</span></div>
+        <div class="sub">SITE OPS COMMAND // RESTRICTED ACCESS</div>
+        <div class="panel">
+          <div class="field">
+            <label>OPERATOR ID</label
+            ><input id="user" autocomplete="username" />
+          </div>
+          <div class="field">
+            <label>PASSCODE</label
+            ><input id="pass" type="password" autocomplete="current-password" />
+          </div>
+          <button class="btn active" style="width: 100%" onclick="doLogin()">
+            AUTHENTICATE ▸
+          </button>
+          <div class="login-err" id="err"></div>
+        </div>
+        <div class="hint">
+          DEFAULT CREDS — admin / admin123 · viewer / view123
+        </div>
+      </div>
+    </div>
+    <div class="hazard"></div>
+    <script>
+      const u = document.getElementById("user"),
+        p = document.getElementById("pass");
+      async function doLogin() {
+        const r = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: u.value, password: p.value }),
+        });
+        if (!r.ok) {
+          document.getElementById("err").textContent =
+            "ACCESS DENIED — invalid credentials";
+          return;
+        }
+        const d = await r.json();
+        localStorage.setItem("sl_token", d.token);
+        localStorage.setItem("sl_user", d.username);
+        localStorage.setItem("sl_role", d.role);
+        location.replace("index.html");
+      }
+      p.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") doLogin();
+      });
+    </script>
+  </body>
+</html>

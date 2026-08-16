@@ -76,7 +76,14 @@ function startScreen() {
 
 async function resetAll() {
   if (!confirm("RESET all violations, logs and snapshots to zero?")) return;
-  await fetch("/api/reset", { method: "POST" });
+  const r = await fetch("/api/reset", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + TOKEN },
+  });
+  if (!r.ok) {
+    log("SYS", "RESET DENIED — admin access required", "warn");
+    return;
+  }
   logEl.innerHTML = "";
   lastViolation = 0;
   log("SYS", "System reset — all records cleared", "ok");

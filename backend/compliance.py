@@ -1,6 +1,5 @@
 import time
-from config import (VIOLATION_CLASSES, COOLDOWN_SEC, PERSON_CONF, GEAR_CONF,
-                    CHECK_VEST, MIN_FRAMES)
+from config import VIOLATION_CLASSES, SETTINGS
 
 _cooldown = {}
 _streak = {}
@@ -15,20 +14,21 @@ def iou(a, b):
     return inter / union if union else 0
 
 def check_compliance(detections):
+    S = SETTINGS
     now = time.time()
     candidates = []
 
     # Direct missing-gear classes
     for d in detections:
-        if d["conf"] >= PERSON_CONF:
+        if d["conf"] >= S["person_conf"]:
             vtype = VIOLATION_CLASSES.get(d["cls"])
             if vtype:
                 candidates.append({"type": vtype, "box": d["box"], "conf": d["conf"]})
 
     # Geometric: person present, gear missing?
-    persons = [d for d in detections if d["cls"] in ("Person", "person") and d["conf"] >= PERSON_CONF]
-    helmets = [d for d in detections if d["cls"] in ("helmet", "Hardhat") and d["conf"] >= GEAR_CONF]
-    vests   = [d for d in detections if d["cls"] == "vest" and d["conf"] >= GEAR_CONF]
+    persons = [d for d in detections if d["cls"] in ("Person", "person") and d["conf"] >= S["person_conf"]]
+    helmets = [d for d in detections if d["cls"] in ("helmet", "Hardhat") and d["conf"] >= S["gear_conf"]]
+    vests   = [d for d in detections if d["cls"] == "vest" and d["conf"] >= S["gear_conf"]]
 
     for p in persons:
         x1, y1, x2, y2 = p["box"]
@@ -38,7 +38,7 @@ def check_compliance(detections):
 
         if not any(iou(hm["box"], head_zone) > 0.1 for hm in helmets):
             candidates.append({"type": "NO_HELMET", "box": p["box"], "conf": p["conf"]})
-        if CHECK_VEST and not any(iou(v["box"], torso_zone) > 0.1 for v in vests):
+        if S["check_vest"] and not any(iou(v["box"], torso_zone) > 0.1 for v in vests):
             candidates.append({"type": "NO_VEST", "box": p["box"], "conf": p["conf"]})
 
     # Temporal voting + cooldown
@@ -46,10 +46,10 @@ def check_compliance(detections):
     for v in candidates:
         key = (v["type"], v["box"][0] // 160, v["box"][1] // 160)
         _streak[key] = _streak.get(key, 0) + 1
-        if _streak[key] < MIN_FRAMES:
-            continue                       # not confirmed yet — ignore blips
-        if now - _cooldown.get(key, 0) < COOLDOWN_SEC:
-            continue                       # already alerted recently
+        if _streak[key] < S["min_frames"]:
+            continue
+        if now - _cooldown.get(key, 0) < S["cooldown_sec"]:
+            continue
         _cooldown[key] = now
         _streak[key] = 0
         kept.append(v)

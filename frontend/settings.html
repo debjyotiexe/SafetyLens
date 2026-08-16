@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafetyLens // Settings</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body data-page="settings">
+    <div class="hazard"></div>
+    <header class="topbar">
+      <div class="logo">SAFETY<span>LENS</span></div>
+      <div class="tag">SETTINGS CONSOLE</div>
+      <div class="spacer"></div>
+      <div class="tag" id="ro-tag" hidden>READ-ONLY ACCESS</div>
+    </header>
+    <main class="page">
+      <div class="panel">
+        <h3>// DETECTION ENGINE</h3>
+        <label class="ctl"
+          >RAW CONFIDENCE<input
+            id="s-confidence"
+            type="range"
+            min="0.1"
+            max="0.9"
+            step="0.05" /><span id="v-confidence"></span
+        ></label>
+        <label class="ctl"
+          >PERSON CONFIDENCE<input
+            id="s-person_conf"
+            type="range"
+            min="0.2"
+            max="0.9"
+            step="0.05" /><span id="v-person_conf"></span
+        ></label>
+        <label class="ctl"
+          >GEAR CONFIDENCE<input
+            id="s-gear_conf"
+            type="range"
+            min="0.1"
+            max="0.9"
+            step="0.05" /><span id="v-gear_conf"></span
+        ></label>
+        <label class="ctl"
+          >COOLDOWN (SEC)<input
+            id="s-cooldown_sec"
+            type="range"
+            min="5"
+            max="120"
+            step="5" /><span id="v-cooldown_sec"></span
+        ></label>
+        <label class="ctl"
+          >CONFIRM FRAMES<input
+            id="s-min_frames"
+            type="range"
+            min="1"
+            max="10"
+            step="1" /><span id="v-min_frames"></span
+        ></label>
+      </div>
+      <div class="panel" style="margin-top: 14px">
+        <h3>// COMPLIANCE RULES</h3>
+        <label class="ctl"
+          >VEST CHECK
+          <div id="t-check_vest" class="switch"></div>
+          <span></span
+        ></label>
+      </div>
+      <div class="panel" style="margin-top: 14px">
+        <h3>// AI MODEL</h3>
+        <label class="ctl"
+          >ACTIVE MODEL<select id="s-model" class="ctl-select"></select
+          ><span></span
+        ></label>
+      </div>
+      <div style="margin-top: 14px">
+        <button class="btn active" id="save-btn">APPLY SETTINGS ▸</button>
+      </div>
+    </main>
+    <div class="hazard"></div>
+    <script src="js/shell.js"></script>
+    <script src="js/settings.js"></script>
+  </body>
+</html>

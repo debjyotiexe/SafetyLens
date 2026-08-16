@@ -1,24 +1,60 @@
-import base64, os, time
-import sqlite3
+import base64, os, time, sqlite3
 import cv2
 import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from ultralytics import YOLO
 
-from config import (MODEL_PATH, CONFIDENCE, SNAPSHOT_DIR, CAMERA_ID, RELEVANT_CLASSES,DB_PATH)
+from config import SNAPSHOT_DIR, DB_PATH, CAMERA_ID, RELEVANT_CLASSES, SETTINGS, MODEL_OPTIONS
 from compliance import check_compliance
-from database import init_db, log_violation, get_stats
+from database import init_db, log_violation, get_stats, verify_login, check_token
 
 app = FastAPI(title="SafetyLens AI")
 init_db()
 os.makedirs(SNAPSHOT_DIR, exist_ok=True)
 
-print("Loading model...")
-model = YOLO(MODEL_PATH)
-RELEVANT_IDS = [i for i, name in model.names.items() if name in RELEVANT_CLASSES]
-print(f"Model ready. Watching only: {[model.names[i] for i in RELEVANT_IDS]}")
+# ---------- model management ----------
+model = None
+RELEVANT_IDS = []
+LOADED_MODEL = [None]
 
+def load_model(key):
+    global model, RELEVANT_IDS
+    path = MODEL_OPTIONS.get(key)
+    if not path or not os.path.exists(path):
+        print(f"[!] Model file missing for '{key}': {path}")
+        return False
+    print(f"Loading model [{key}] ...")
+    model = YOLO(path)
+    RELEVANT_IDS = [i for i, name in model.names.items() if name in RELEVANT_CLASSES]
+    LOADED_MODEL[0] = key
+    print(f"Model ready. Watching only: {[model.names[i] for i in RELEVANT_IDS]}")
+    return True
+
+load_model(SETTINGS["model"])
+
+# ---------- auth ----------
+def get_user(authorization: str = Header(default=None)):
+    token = authorization[7:] if authorization and authorization.startswith("Bearer ") else None
+    user = check_token(token)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+    return user
+
+def get_admin(user=Depends(get_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin access required")
+    return user
+
+class LoginBody(BaseModel):
+    username: str
+    password: str
+
+class SettingsBody(BaseModel):
+    settings: dict
+
+# ---------- visual helpers ----------
 COLORS = {
     "Person": (0, 170, 255), "person": (0, 170, 255),
     "helmet": (0, 255, 0), "Hardhat": (0, 255, 0), "vest": (0, 255, 0),
@@ -48,6 +84,36 @@ def save_snapshot(frame, v):
     cv2.imwrite(path, crop)
     return path
 
+# ---------- auth routes ----------
+@app.post("/api/login")
+def login(body: LoginBody):
+    res = verify_login(body.username, body.password)
+    if not res:
+        raise HTTPException(401, "Invalid credentials")
+    return res
+
+@app.get("/api/me")
+def me(user=Depends(get_user)):
+    return user
+
+# ---------- settings routes ----------
+@app.get("/api/settings")
+def read_settings(user=Depends(get_user)):
+    return {"settings": SETTINGS, "models": list(MODEL_OPTIONS.keys()), "active": LOADED_MODEL[0]}
+
+@app.post("/api/settings")
+def write_settings(body: SettingsBody, user=Depends(get_admin)):
+    for k, v in body.settings.items():
+        if k in SETTINGS and k != "model":
+            SETTINGS[k] = v
+    msg = "applied"
+    if body.settings.get("model") and body.settings["model"] != LOADED_MODEL[0]:
+        if load_model(body.settings["model"]):
+            SETTINGS["model"] = body.settings["model"]
+            msg = "applied + model reloaded"
+    return {"status": msg, "settings": SETTINGS}
+
+# ---------- live stream ----------
 @app.websocket("/ws/stream")
 async def stream(ws: WebSocket):
     await ws.accept()
@@ -59,7 +125,7 @@ async def stream(ws: WebSocket):
             if frame is None:
                 continue
 
-            results = model.predict(frame, conf=CONFIDENCE, classes=RELEVANT_IDS, verbose=False)
+            results = model.predict(frame, conf=SETTINGS["confidence"], classes=RELEVANT_IDS, verbose=False)
             detections = [
                 {"cls": model.names[int(b.cls[0])],
                  "conf": float(b.conf[0]),
@@ -89,6 +155,7 @@ async def stream(ws: WebSocket):
     except WebSocketDisconnect:
         print("[-] Camera client disconnected")
 
+# ---------- data routes ----------
 @app.get("/api/stats")
 def stats():
     return get_stats()
@@ -99,13 +166,12 @@ def snapshots():
     return [{"name": f, "url": f"/snapshots/{f}"} for f in files if f.endswith(".jpg")]
 
 @app.post("/api/reset")
-def reset():
-    # wipe all logged violations + alerts
+def reset(user=Depends(get_admin)):
     with sqlite3.connect(DB_PATH) as c:
         c.execute("DELETE FROM alerts")
         c.execute("DELETE FROM violations")
-        c.execute("DELETE FROM sqlite_sequence")   # reset auto-increment to 0
-    # wipe snapshot images
+        try: c.execute("DELETE FROM sqlite_sequence")
+        except sqlite3.OperationalError: pass
     for f in os.listdir(SNAPSHOT_DIR):
         if f.endswith(".jpg"):
             try: os.remove(os.path.join(SNAPSHOT_DIR, f))
