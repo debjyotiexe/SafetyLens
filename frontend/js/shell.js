@@ -1,4 +1,4 @@
-// ===== SafetyLens shell: auth guard + sidebar =====
+// ===== SafetyLens shell: auth guard + sidebar + role gating =====
 const TOKEN = localStorage.getItem("sl_token");
 if (!TOKEN) location.replace("login.html");
 
@@ -23,24 +23,26 @@ function toast(msg) {
 
 function buildShell(me) {
   const page = document.body.dataset.page || "command";
+
   const items = [
-    ["command", "COMMAND", "index.html", true],
-    ["settings", "SETTINGS", "settings.html", true],
-    ["incidents", "INCIDENTS", null, false],
-    ["cameras", "CAMERAS", null, false],
-    ["zones", "ZONES", null, false],
-    ["reports", "REPORTS", null, false],
-    ["analytics", "ANALYTICS", null, false],
+    ["command", "COMMAND", "index.html"],
+    ...(me.role === "admin" ? [["settings", "SETTINGS", "settings.html"]] : []),
   ];
+  const soon = ["INCIDENTS", "CAMERAS", "ZONES", "REPORTS", "ANALYTICS"];
+
   const nav = document.createElement("aside");
   nav.className = "sidebar";
   nav.innerHTML = `
-        <div class="side-logo">SAFETY<span>LENS</span></div>
         ${items
-          .map(([id, label, href, live]) =>
-            live
-              ? `<a class="side-item ${page === id ? "active" : ""}" href="${href}">▸ ${label}</a>`
-              : `<a class="side-item soon" href="#" data-soon="${label}">▸ ${label}<em>SOON</em></a>`,
+          .map(
+            ([id, label, href]) =>
+              `<a class="side-item ${page === id ? "active" : ""}" href="${href}">▸ ${label}</a>`,
+          )
+          .join("")}
+        ${soon
+          .map(
+            (s) =>
+              `<a class="side-item soon" href="#" data-soon="${s}">▸ ${s}<em>SOON</em></a>`,
           )
           .join("")}
         <div class="side-user">
@@ -49,10 +51,15 @@ function buildShell(me) {
         </div>`;
   document.body.prepend(nav);
   document.body.classList.add("shelled");
+
   nav.querySelectorAll("[data-soon]").forEach((a) =>
     a.addEventListener("click", (e) => {
       e.preventDefault();
       toast(`MODULE "${a.dataset.soon}" OFFLINE — SPRINT B+`);
     }),
   );
+
+  if (me.role !== "admin") {
+    document.querySelectorAll("[data-admin]").forEach((el) => el.remove());
+  }
 }

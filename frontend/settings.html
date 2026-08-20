@@ -6,9 +6,18 @@
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body data-page="settings">
-    <div class="hazard"></div>
+    <div class="hazard top"></div>
     <header class="topbar">
-      <div class="logo">SAFETY<span>LENS</span></div>
+      <div class="brand">
+        <button
+          class="btn hamburger"
+          title="Toggle sidebar"
+          onclick="document.body.classList.toggle('side-hidden')"
+        >
+          ≡
+        </button>
+        <div class="logo">SAFETY<span>LENS</span></div>
+      </div>
       <div class="tag">SETTINGS CONSOLE</div>
       <div class="spacer"></div>
       <div class="tag" id="ro-tag" hidden>READ-ONLY ACCESS</div>

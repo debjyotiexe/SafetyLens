@@ -1,8 +1,8 @@
 import sqlite3, hashlib, secrets
-from config import DB_PATH
+import config
 
 def _conn():
-    return sqlite3.connect(DB_PATH)
+    return sqlite3.connect(config.DB_PATH)
 
 def hash_pw(pw, salt):
     return hashlib.sha256((salt + pw).encode()).hexdigest()

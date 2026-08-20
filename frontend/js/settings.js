@@ -1,3 +1,4 @@
+if (localStorage.getItem("sl_role") !== "admin") location.replace("index.html");
 const $ = (id) => document.getElementById(id);
 
 async function load() {

@@ -9,27 +9,47 @@ setInterval(() => {
   $("clock").textContent = new Date().toLocaleTimeString("en-GB");
 }, 1000);
 
-// ---- audio alarm ----
-let audioOn = true;
-const actx = new (window.AudioContext || window.webkitAudioContext)();
-document.addEventListener("click", () => actx.resume());
+// ---- audio alarm (autoplay-policy safe, no state gating) ----
+let audioOn = true,
+  actx = null;
+function ensureAudio() {
+  if (!actx) {
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      actx = null;
+    }
+  }
+  if (actx && actx.state !== "running") actx.resume().catch(() => {});
+}
+window.addEventListener("pointerdown", ensureAudio);
+window.addEventListener("keydown", ensureAudio);
+
 function beep() {
   if (!audioOn) return;
+  ensureAudio();
+  if (!actx) return;
+  const t = actx.currentTime;
   const o = actx.createOscillator(),
     g = actx.createGain();
   o.type = "square";
-  o.frequency.value = 880;
-  g.gain.value = 0.05;
-  o.connect(g);
-  g.connect(actx.destination);
-  o.start();
-  o.frequency.exponentialRampToValueAtTime(440, actx.currentTime + 0.18);
-  o.stop(actx.currentTime + 0.2);
+  o.frequency.setValueAtTime(880, t);
+  o.frequency.exponentialRampToValueAtTime(440, t + 0.18);
+  g.gain.setValueAtTime(0.08, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+  o.connect(g).connect(actx.destination);
+  o.start(t);
+  o.stop(t + 0.26);
+}
+function testAlarm() {
+  ensureAudio();
+  setTimeout(beep, 60);
 }
 function toggleSound(btn) {
   audioOn = !audioOn;
   btn.textContent = audioOn ? "SOUND: ON" : "SOUND: OFF";
   btn.classList.toggle("active", audioOn);
+  if (audioOn) testAlarm();
 }
 
 // ---- event log ----
@@ -72,22 +92,6 @@ function startScreen() {
     video.srcObject = s;
     log("SYS", "Screen share online", "ok");
   });
-}
-
-async function resetAll() {
-  if (!confirm("RESET all violations, logs and snapshots to zero?")) return;
-  const r = await fetch("/api/reset", {
-    method: "POST",
-    headers: { Authorization: "Bearer " + TOKEN },
-  });
-  if (!r.ok) {
-    log("SYS", "RESET DENIED — admin access required", "warn");
-    return;
-  }
-  logEl.innerHTML = "";
-  lastViolation = 0;
-  log("SYS", "System reset — all records cleared", "ok");
-  refresh();
 }
 
 // ---- websocket + telemetry ----
@@ -149,7 +153,15 @@ setInterval(() => {
   }
 }, 1000);
 
-// ---- charts ----
+// ---- snapshot modal ----
+$("gallery").addEventListener("click", (e) => {
+  const img = e.target.closest("img");
+  if (!img) return;
+  $("modal-img").src = img.src;
+  $("modal").classList.add("open");
+});
+
+// ---- charts (fill their boxes fully) ----
 Chart.defaults.color = "#6d7c8c";
 Chart.defaults.font.family = "'ShareTechMono', monospace";
 Chart.defaults.borderColor = "rgba(28,39,51,.8)";
@@ -161,6 +173,7 @@ const hourlyChart = new Chart($("chart-hourly"), {
     datasets: [{ data: [], backgroundColor: "#ffb400", borderWidth: 0 }],
   },
   options: {
+    maintainAspectRatio: false,
     plugins: { legend: { display: false } },
     scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
   },
@@ -177,7 +190,10 @@ const typesChart = new Chart($("chart-types"), {
       },
     ],
   },
-  options: { plugins: { legend: { labels: { boxWidth: 10 } } } },
+  options: {
+    maintainAspectRatio: false,
+    plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } } },
+  },
 });
 
 async function refresh() {
@@ -193,11 +209,28 @@ async function refresh() {
     typesChart.update("none");
     const snaps = await (await fetch("/api/snapshots")).json();
     $("gallery").innerHTML = snaps
-      .slice(0, 6)
-      .map((x) => `<img src="${x.url}">`)
+      .map((x) => `<img src="${x.url}" alt="${x.name}">`)
       .join("");
   } catch (e) {}
 }
 refresh();
 setInterval(refresh, 3000);
+
+// ---- admin reset ----
+async function resetAll() {
+  if (!confirm("RESET all violations, logs and snapshots to zero?")) return;
+  const r = await fetch("/api/reset", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + TOKEN },
+  });
+  if (!r.ok) {
+    log("SYS", "RESET DENIED — admin access required", "warn");
+    return;
+  }
+  logEl.innerHTML = "";
+  lastViolation = 0;
+  log("SYS", "System reset — all records cleared", "ok");
+  refresh();
+}
+
 log("SYS", "SafetyLens command center initialized", "ok");

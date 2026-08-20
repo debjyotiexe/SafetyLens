@@ -605,3 +605,129 @@ body.shelled {
   z-index: 99;
   letter-spacing: 1px;
 }
+/* ============ FIX PATCH ============ */
+/* #1 hamburger + collapsible sidebar */
+.hamburger {
+  font-size: 15px;
+  line-height: 1;
+  padding: 6px 10px;
+}
+body.side-hidden .sidebar {
+  display: none;
+}
+body.side-hidden {
+  padding-left: 0;
+}
+
+/* #2 layout overflow — right column no longer clipped */
+.grid {
+  grid-template-columns: 240px minmax(0, 1fr) 300px;
+}
+.grid > * {
+  min-width: 0;
+}
+.gallery {
+  grid-template-columns: repeat(2, 1fr);
+}
+.feedwrap canvas {
+  height: auto;
+}
+
+/* #5 bottom hazard glued to viewport bottom (login) */
+.hazard.bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+}
+.login-wrap {
+  min-height: calc(100vh - 12px);
+}
+/* ============ PATCH v2: header / layout / gallery / modal ============ */
+.hazard.top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 80;
+}
+.topbar {
+  position: fixed;
+  top: 6px;
+  left: 0;
+  right: 0;
+  height: 52px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  background: linear-gradient(180deg, #0d1218, #0a0e12);
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand .logo {
+  font-size: 22px;
+  letter-spacing: 3px;
+}
+body {
+  padding-top: 58px;
+}
+.sidebar {
+  top: 58px;
+}
+
+/* charts fill their panels */
+.chartbox {
+  position: relative;
+  height: 210px;
+}
+.chartbox.tall {
+  height: 250px;
+}
+
+/* right column: fixed heights, scrollable */
+.log {
+  height: 300px;
+}
+.gallery {
+  max-height: 330px;
+  overflow-y: auto;
+  grid-template-columns: repeat(2, 1fr);
+}
+.gallery img {
+  aspect-ratio: 1/1;
+  object-fit: cover;
+  cursor: pointer;
+  transition: 0.15s;
+}
+.gallery img:hover {
+  border-color: var(--amber);
+  filter: none;
+}
+
+/* snapshot modal with blurred backdrop */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 6, 10, 0.72);
+  backdrop-filter: blur(7px);
+  z-index: 120;
+}
+.modal.open {
+  display: flex;
+}
+.modal img {
+  max-width: 86vw;
+  max-height: 86vh;
+  border: 2px solid var(--amber);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.85);
+}

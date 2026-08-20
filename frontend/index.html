@@ -2,16 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>SafetyLens</title>
+    <title>SafetyLens // Site Ops Command</title>
     <link rel="stylesheet" href="css/style.css" />
     <script src="js/chart.umd.js"></script>
   </head>
   <body data-page="command">
-    <div class="hazard"></div>
+    <div class="hazard top"></div>
     <header class="topbar">
-      <div class="logo">SAFETY<span>LENS</span></div>
-      <!-- <div class="tag">SITE OPS COMMAND</div> -->
-      <!-- <div class="tag">MODEL <b>YOLOv8n-CUSTOM</b></div> -->
+      <div class="brand">
+        <button
+          class="btn hamburger"
+          title="Toggle sidebar"
+          onclick="document.body.classList.toggle('side-hidden')"
+        >
+          ≡
+        </button>
+        <div class="logo">SAFETY<span>LENS</span></div>
+      </div>
+      <div class="tag">SITE OPS COMMAND</div>
+      <div class="tag">MODEL <b>YOLOv8n-CUSTOM</b></div>
       <div class="spacer"></div>
       <div class="tag" id="fps-tag">-- FPS</div>
       <div class="tag" id="lat-tag">-- ms</div>
@@ -56,9 +65,16 @@
             <button class="btn active" onclick="toggleSound(this)">
               SOUND: ON
             </button>
-            <button class="btn danger" onclick="resetAll()">⟲ RESET</button>
+            <button class="btn" onclick="testAlarm()">ALARM TEST</button>
+            <button class="btn danger" data-admin onclick="resetAll()">
+              ⟲ RESET
+            </button>
             <input type="file" id="file-input" accept="video/*" hidden />
           </div>
+        </div>
+        <div class="panel" style="margin-top: 14px">
+          <h3>// THREAT MIX</h3>
+          <div class="chartbox"><canvas id="chart-types"></canvas></div>
         </div>
       </aside>
 
@@ -76,35 +92,34 @@
             <div class="feedlabel">
               <span class="rec"></span>CAM_01 // LIVE FEED
             </div>
-            <!-- <div class="feedlabel right">GPU: RTX 4060 // CUDA</div> -->
+            <div class="feedlabel right">GPU: RTX 4060 // CUDA</div>
           </div>
         </div>
-        <div class="chartrow">
-          <div class="panel">
-            <h3>// VIOLATIONS BY HOUR</h3>
-            <canvas id="chart-hourly" height="110"></canvas>
-          </div>
-          <div class="panel">
-            <h3>// THREAT MIX</h3>
-            <canvas id="chart-types" height="110"></canvas>
-          </div>
+        <div class="panel" style="margin-top: 14px">
+          <h3>// VIOLATIONS BY HOUR</h3>
+          <div class="chartbox tall"><canvas id="chart-hourly"></canvas></div>
         </div>
       </section>
 
       <!-- RIGHT -->
       <aside>
-        <!-- <div class="panel">
+        <div class="panel">
           <h3>// LIVE EVENT LOG</h3>
           <div id="log" class="log"></div>
-        </div> -->
-        <!-- margin-top:14px -->
-        <div class="panel" style="margin-top: 0px">
+        </div>
+        <div class="panel" style="margin-top: 14px">
           <h3>// CAUGHT ON CAMERA</h3>
           <div id="gallery" class="gallery"></div>
         </div>
       </aside>
     </main>
-    <div class="hazard"></div>
+
+    <!-- snapshot modal (blurred backdrop) -->
+    <div id="modal" class="modal" onclick="this.classList.remove('open')">
+      <img id="modal-img" src="" alt="violation snapshot" />
+    </div>
+
+    <div class="hazard bottom"></div>
     <script src="js/shell.js"></script>
     <script src="js/live.js"></script>
   </body>

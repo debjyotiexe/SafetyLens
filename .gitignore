@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+backend/runs/
+backend/snapshots/
+backend/*.db
+backend/models/*.pt
+datasets/
+.DS_Store

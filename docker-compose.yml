@@ -1,0 +1,8 @@
+services:
+  safetylens:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/snapshots:/app/backend/snapshots
+    restart: unless-stopped

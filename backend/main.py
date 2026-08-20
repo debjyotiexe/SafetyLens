@@ -32,7 +32,11 @@ def load_model(key):
     print(f"Model ready. Watching only: {[model.names[i] for i in RELEVANT_IDS]}")
     return True
 
-load_model(SETTINGS["model"])
+if not load_model(SETTINGS["model"]):
+    for _k in MODEL_OPTIONS:
+        if load_model(_k):
+            SETTINGS["model"] = _k
+            break
 
 # ---------- auth ----------
 def get_user(authorization: str = Header(default=None)):

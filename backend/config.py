@@ -14,7 +14,7 @@ VIOLATION_CLASSES = {
 # Switchable models (Settings console)
 MODEL_OPTIONS = {
     "v0-hardhat": "models/best.pt",
-    "v1-custom": "runs/detect/models/trained/safetylens_v1-3/weights/best.pt",
+    "v1-custom": "models/safetylens_v1.pt",
 }
 
 # Live-tunable runtime settings (Settings console)
