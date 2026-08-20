@@ -1,9 +1,27 @@
+# Python
 venv/
 __pycache__/
 *.pyc
-backend/runs/
-backend/snapshots/
+
+# Environment
+.env
+
+# Databases / generated data
 backend/*.db
+backend/snapshots/
+backend/runs/
+
+# ML models / weights
 backend/models/*.pt
+backend/*.pt
+*.pt
+
+# Training datasets
 datasets/
+
+# Large media / demo assets
+assets/*.mp4
+
+# OS
 .DS_Store
+Thumbs.db
