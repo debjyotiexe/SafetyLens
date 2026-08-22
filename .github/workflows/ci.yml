@@ -10,7 +10,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install test deps
-        run: pip install pytest fastapi
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
       - name: Run test suite
         run: cd backend && python -m pytest tests/ -v
