@@ -20,7 +20,7 @@
         <div class="logo">SAFETY<span>LENS</span></div>
       </div>
       <div class="tag">SITE OPS COMMAND</div>
-      <div class="tag">MODEL <b>YOLOv8n-CUSTOM</b></div>
+      <div class="tag" id="active-model">MODEL <b>LOADING...</b></div>
       <div class="spacer"></div>
       <div class="tag" id="fps-tag">-- FPS</div>
       <div class="tag" id="lat-tag">-- ms</div>
@@ -49,6 +49,21 @@
           <div class="kpi">
             <span class="val" id="k-total">0</span
             ><span class="lbl">TOTAL LOGGED</span>
+          </div>
+          <div class="kpi">
+            <span class="val" id="k-helmet">0</span><span class="lbl">HELMETS</span>
+          </div>
+          <div class="kpi">
+            <span class="val" id="k-vest">0</span><span class="lbl">VESTS</span>
+          </div>
+          <div class="kpi">
+            <span class="val" id="k-gloves">0</span><span class="lbl">GLOVES</span>
+          </div>
+          <div class="kpi">
+            <span class="val" id="k-boots">0</span><span class="lbl">BOOTS</span>
+          </div>
+          <div class="kpi">
+            <span class="val" id="k-goggles">0</span><span class="lbl">GOGGLES</span>
           </div>
         </div>
         <div class="panel" style="margin-top: 14px">
@@ -120,7 +135,7 @@
     </div>
 
     <div class="hazard bottom"></div>
-    <script src="js/shell.js"></script>
-    <script src="js/live.js"></script>
+    <script src="js/shell.js?v=2"></script>
+    <script src="js/live.js?v=2"></script>
   </body>
 </html>

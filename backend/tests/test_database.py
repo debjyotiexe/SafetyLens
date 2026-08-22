@@ -19,4 +19,9 @@ def test_full_db_flow():
     assert auth and auth["role"] == "admin"
     assert verify_login("admin", "wrongpass") is None
 
-    os.remove(config.DB_PATH)
+    import gc
+    gc.collect()
+    try:
+        os.remove(config.DB_PATH)
+    except PermissionError:
+        pass

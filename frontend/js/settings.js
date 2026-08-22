@@ -10,6 +10,7 @@ async function load() {
 
   for (const k of [
     "confidence",
+    "negative_confidence",
     "person_conf",
     "gear_conf",
     "cooldown_sec",
@@ -28,7 +29,7 @@ async function load() {
   $("s-model").innerHTML = d.models
     .map(
       (m) =>
-        `<option value="${m}" ${m === d.active ? "selected" : ""}>${m}</option>`,
+        `<option value="${m.id}" ${m.id === d.active ? "selected" : ""} ${m.available ? "" : "disabled"}>${m.name}${m.available ? "" : " (Unavailable)"}</option>`,
     )
     .join("");
 
@@ -43,6 +44,7 @@ async function load() {
 $("save-btn").addEventListener("click", async () => {
   const payload = {
     confidence: parseFloat($("s-confidence").value),
+    negative_confidence: parseFloat($("s-negative_confidence").value),
     person_conf: parseFloat($("s-person_conf").value),
     gear_conf: parseFloat($("s-gear_conf").value),
     cooldown_sec: parseInt($("s-cooldown_sec").value),

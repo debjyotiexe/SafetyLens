@@ -102,40 +102,64 @@ setInterval(() => {
   frames = 0;
 }, 1000);
 
-const ws = new WebSocket(`ws://${location.host}/ws/stream`);
-ws.onopen = () => log("SYS", "Backend link established", "ok");
-ws.onclose = () => log("SYS", "BACKEND LINK LOST", "warn");
+let ws = null;
+let reconnectTimer = null;
+
+function connectWs() {
+  if (ws && ws.readyState !== WebSocket.CLOSED) return;
+  ws = new WebSocket(`ws://${location.host}/ws/stream`);
+
+  ws.onopen = () => {
+    log("SYS", "Backend link established", "ok");
+    $("threat").textContent = "NOMINAL";
+    $("threat").className = "threat nominal";
+  };
+
+  ws.onclose = () => {
+    log("SYS", "BACKEND LINK LOST - Reconnecting...", "warn");
+    ws = null;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connectWs, 3000);
+  };
+
+  ws.onerror = () => {
+    if(ws) ws.close();
+  };
+
+  ws.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    frames++;
+    $("lat-tag").textContent =
+      Math.max(0, Math.round((Date.now() / 1000 - d.ts) * 1000)) + " ms";
+
+    const img = new Image();
+    img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    img.src = "data:image/jpeg;base64," + d.frame;
+
+    $("k-workers").textContent = d.detections.filter(
+      (x) => (x.cls === "Person" || x.cls === "person") && x.conf >= 0.5,
+    ).length;
+    $("k-active").textContent = d.violations.length;
+
+    d.violations.forEach((v) => {
+      lastViolation = Date.now();
+      log("CAM_01", `${v.type}  conf ${(v.conf * 100).toFixed(1)}%`, "warn");
+      beep();
+    });
+  };
+}
+connectWs();
 
 const grab = document.createElement("canvas");
-grab.width = 640;
-grab.height = 480;
 setInterval(() => {
-  if (video.readyState < 2 || ws.readyState !== WebSocket.OPEN) return;
-  grab.getContext("2d").drawImage(video, 0, 0, 640, 480);
-  grab.toBlob((b) => ws.send(b), "image/jpeg", 0.8);
+  if (video.readyState < 2 || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (grab.width !== video.videoWidth) {
+    grab.width = video.videoWidth;
+    grab.height = video.videoHeight;
+  }
+  grab.getContext("2d").drawImage(video, 0, 0, grab.width, grab.height);
+  grab.toBlob((b) => ws.send(b), "image/jpeg", 0.9);
 }, 200);
-
-ws.onmessage = (e) => {
-  const d = JSON.parse(e.data);
-  frames++;
-  $("lat-tag").textContent =
-    Math.max(0, Math.round((Date.now() / 1000 - d.ts) * 1000)) + " ms";
-
-  const img = new Image();
-  img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  img.src = "data:image/jpeg;base64," + d.frame;
-
-  $("k-workers").textContent = d.detections.filter(
-    (x) => (x.cls === "Person" || x.cls === "person") && x.conf >= 0.5,
-  ).length;
-  $("k-active").textContent = d.violations.length;
-
-  d.violations.forEach((v) => {
-    lastViolation = Date.now();
-    log("CAM_01", `${v.type}  conf ${(v.conf * 100).toFixed(1)}%`, "warn");
-    beep();
-  });
-};
 
 // ---- threat level engine ----
 setInterval(() => {
@@ -198,19 +222,35 @@ const typesChart = new Chart($("chart-types"), {
 
 async function refresh() {
   try {
-    const s = await (await fetch("/api/stats")).json();
+    const s = await (await fetch("/api/stats", { headers: { Authorization: "Bearer " + TOKEN } })).json();
     $("k-today").textContent = s.today;
     $("k-total").textContent = s.total;
+
+    $("k-helmet").textContent = s.by_type.find(t => t[0] === 'NO_HELMET')?.[1] || 0;
+    $("k-vest").textContent = s.by_type.find(t => t[0] === 'NO_VEST')?.[1] || 0;
+    $("k-gloves").textContent = s.by_type.find(t => t[0] === 'NO_GLOVES')?.[1] || 0;
+    $("k-boots").textContent = s.by_type.find(t => t[0] === 'NO_BOOTS')?.[1] || 0;
+    $("k-goggles").textContent = s.by_type.find(t => t[0] === 'NO_GOGGLES')?.[1] || 0;
+
     hourlyChart.data.labels = s.hourly.map((h) => h[0] + ":00");
     hourlyChart.data.datasets[0].data = s.hourly.map((h) => h[1]);
     hourlyChart.update("none");
     typesChart.data.labels = s.by_type.map((t) => t[0]);
     typesChart.data.datasets[0].data = s.by_type.map((t) => t[1]);
     typesChart.update("none");
-    const snaps = await (await fetch("/api/snapshots")).json();
+    const snaps = await (await fetch("/api/snapshots", { headers: { Authorization: "Bearer " + TOKEN } })).json();
     $("gallery").innerHTML = snaps
       .map((x) => `<img src="${x.url}" alt="${x.name}">`)
       .join("");
+
+    const settingsRes = await fetch("/api/settings", { headers: { Authorization: "Bearer " + TOKEN } });
+    if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        const activeEl = $("active-model");
+        const activeModel = settingsData.models ? settingsData.models.find(m => m.id === settingsData.active) : null;
+        const activeName = activeModel ? activeModel.name : (settingsData.active || "NONE");
+        if (activeEl) activeEl.innerHTML = `MODEL <b>${activeName}</b>`;
+    }
   } catch (e) {}
 }
 refresh();

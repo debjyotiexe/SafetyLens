@@ -1,6 +1,6 @@
 # 🦺 SafetyLens AI — Site Ops Command
 
-Real-time PPE compliance platform: custom-trained YOLOv8 detects workers, helmets and vests on live camera feeds; a rules engine raises temporally-confirmed violations; an industrial command center streams alerts, snapshots and analytics.
+Real-time PPE compliance platform: custom-trained YOLOv8 detects workers, helmets, vests, gloves, boots, and goggles on live camera feeds. A geometric rules engine raises temporally-confirmed violations by matching negative (`no_X`) detections to person-specific zones. An industrial command center streams alerts, snapshots, and analytics securely.
 
 ## Team Roles
 
@@ -127,6 +127,11 @@ Camera / Video Feed
         ▼
  Industrial Command Center
 ```
+
+## Detection Thresholds
+- **Positive/General classes:** `0.30`
+- **Explicit negative PPE classes:** `0.15`
+- **Temporal confirmation:** `3` consecutive frames
 
 ## Repository Hygiene
 

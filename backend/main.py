@@ -21,7 +21,8 @@ LOADED_MODEL = [None]
 
 def load_model(key):
     global model, RELEVANT_IDS
-    path = MODEL_OPTIONS.get(key)
+    meta = MODEL_OPTIONS.get(key, {})
+    path = meta.get("path")
     if not path or not os.path.exists(path):
         print(f"[!] Model file missing for '{key}': {path}")
         return False
@@ -33,10 +34,16 @@ def load_model(key):
     return True
 
 if not load_model(SETTINGS["model"]):
+    loaded_alt = False
     for _k in MODEL_OPTIONS:
         if load_model(_k):
             SETTINGS["model"] = _k
+            loaded_alt = True
             break
+    if not loaded_alt:
+        print("[!] No models available. Entering DEGRADED mode.")
+        LOADED_MODEL[0] = "DEGRADED"
+        model = None
 
 # ---------- auth ----------
 def get_user(authorization: str = Header(default=None)):
@@ -103,7 +110,15 @@ def me(user=Depends(get_user)):
 # ---------- settings routes ----------
 @app.get("/api/settings")
 def read_settings(user=Depends(get_user)):
-    return {"settings": SETTINGS, "models": list(MODEL_OPTIONS.keys()), "active": LOADED_MODEL[0]}
+    models_status = []
+    for k, meta in MODEL_OPTIONS.items():
+        path = meta.get("path")
+        models_status.append({
+            "id": k,
+            "name": meta.get("name", k),
+            "available": os.path.exists(path) if path else False
+        })
+    return {"settings": SETTINGS, "models": models_status, "active": LOADED_MODEL[0]}
 
 @app.post("/api/settings")
 def write_settings(body: SettingsBody, user=Depends(get_admin)):
@@ -122,14 +137,32 @@ def write_settings(body: SettingsBody, user=Depends(get_admin)):
 async def stream(ws: WebSocket):
     await ws.accept()
     print("[+] Camera client connected")
-    try:
-        while True:
+    while True:
+        try:
             data = await ws.receive_bytes()
+        except WebSocketDisconnect:
+            print("[-] Camera client disconnected")
+            break
+
+        try:
             frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
             if frame is None:
                 continue
 
-            results = model.predict(frame, conf=SETTINGS["confidence"], classes=RELEVANT_IDS, verbose=False)
+            if model is None:
+                # Degraded mode: still send the frame, but no processing
+                _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                await ws.send_json({
+                    "frame": base64.b64encode(buf).decode(),
+                    "detections": [],
+                    "violations": [],
+                    "ts": time.time(),
+                    "error": "DEGRADED_MODE"
+                })
+                continue
+
+            inference_conf = min(SETTINGS["confidence"], SETTINGS.get("negative_confidence", 0.15))
+            results = model.predict(frame, conf=inference_conf, classes=RELEVANT_IDS, verbose=False)
             detections = [
                 {"cls": model.names[int(b.cls[0])],
                  "conf": float(b.conf[0]),
@@ -156,16 +189,17 @@ async def stream(ws: WebSocket):
                 "violations": violations,
                 "ts": time.time(),
             })
-    except WebSocketDisconnect:
-        print("[-] Camera client disconnected")
+        except Exception as e:
+            print(f"[!] Frame processing error: {e}")
+            continue
 
 # ---------- data routes ----------
 @app.get("/api/stats")
-def stats():
+def stats(user=Depends(get_user)):
     return get_stats()
 
 @app.get("/api/snapshots")
-def snapshots():
+def snapshots(user=Depends(get_user)):
     files = sorted(os.listdir(SNAPSHOT_DIR), reverse=True)[:12]
     return [{"name": f, "url": f"/snapshots/{f}"} for f in files if f.endswith(".jpg")]
 
