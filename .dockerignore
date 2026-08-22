@@ -1,7 +1,25 @@
+# Ignore local Python environment/cache
 venv/
-__pycache__/
-*.pyc
+**/__pycache__/
+**/*.pyc
+
+# Ignore runtime-generated data
 backend/runs/
 backend/*.db
 backend/snapshots/*.jpg
+
+# Ignore Hugging Face cache
+backend/models/.cache/
+
+# Ignore Git
 .git/
+
+# Explicitly include application files
+!backend/
+!backend/*.py
+!backend/requirements.txt
+!backend/models/
+!backend/models/*.pt
+
+# Frontend
+!frontend/
