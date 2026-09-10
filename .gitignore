@@ -25,3 +25,8 @@ assets/*.mp4
 # OS
 .DS_Store
 Thumbs.db
+
+# temporary diagnostic scripts
+backend/diagnostic*.py
+backend/investigate_*.py
+backend/validate_*.py
