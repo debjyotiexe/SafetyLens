@@ -43,8 +43,13 @@ class LocalStorage(StorageBackend):
     def base_dir(self) -> str:
         return self._base_dir or config.SNAPSHOT_DIR
 
+    @staticmethod
+    def _safe_basename(ref: str) -> str:
+        # Cross-platform basename: handles both / and \ on any OS
+        return ref.replace("\\", "/").split("/")[-1]
+
     def _resolve_path(self, ref: str) -> str:
-        basename = os.path.basename(ref)
+        basename = self._safe_basename(ref)
         return os.path.join(self.base_dir, basename)
 
     def save(self, data: bytes, hint: str = "snapshot") -> str:
@@ -61,7 +66,7 @@ class LocalStorage(StorageBackend):
         return filename
 
     def url(self, ref: str) -> str:
-        basename = os.path.basename(ref)
+        basename = self._safe_basename(ref)
         return f"/snapshots/{basename}"
 
     def delete(self, ref: str) -> bool:
