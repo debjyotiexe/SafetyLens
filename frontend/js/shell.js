@@ -21,14 +21,30 @@ function toast(msg) {
   setTimeout(() => t.remove(), 2500);
 }
 
+async function doLogout() {
+  try {
+    await fetch("/api/logout", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + TOKEN }
+    });
+  } catch (e) {}
+  localStorage.clear();
+  location.replace("login.html");
+}
+
 function buildShell(me) {
   const page = document.body.dataset.page || "command";
 
   const items = [
     ["command", "COMMAND", "index.html"],
-    ...(me.role === "admin" ? [["settings", "SETTINGS", "settings.html"]] : []),
+    ["incidents", "INCIDENTS", "incidents.html"],
+    ...(me.role === "admin" ? [
+        ["cameras", "CAMERAS", "cameras.html"],
+        ["users", "USERS", "users.html"],
+        ["settings", "SETTINGS", "settings.html"]
+    ] : []),
   ];
-  const soon = ["INCIDENTS", "CAMERAS", "ZONES", "REPORTS", "ANALYTICS"];
+  const soon = ["ZONES", "REPORTS", "ANALYTICS"];
 
   const nav = document.createElement("aside");
   nav.className = "sidebar";
@@ -47,7 +63,7 @@ function buildShell(me) {
           .join("")}
         <div class="side-user">
             ${me.username} <b>// ${me.role.toUpperCase()}</b>
-            <button class="btn danger" onclick="localStorage.clear();location.replace('login.html')">LOGOUT</button>
+            <button class="btn danger" onclick="doLogout()">LOGOUT</button>
         </div>`;
   document.body.prepend(nav);
   document.body.classList.add("shelled");

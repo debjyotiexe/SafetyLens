@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafetyLens // User Management</title>
+    <link rel="stylesheet" href="css/style.css?v=5" />
+    <style>
+      .role-select {
+        background: #05070a;
+        border: 1px solid var(--line);
+        color: var(--amber);
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 5px 8px;
+        border-radius: 2px;
+      }
+      .role-select:focus {
+        outline: none;
+        border-color: var(--amber);
+      }
+      .btn-toggle {
+        padding: 5px 10px;
+        font-size: 10px;
+        letter-spacing: 1px;
+      }
+    </style>
+  </head>
+  <body data-page="users">
+    <div class="hazard top"></div>
+    <header class="topbar">
+      <div class="brand">
+        <button
+          class="btn hamburger"
+          title="Toggle sidebar"
+          onclick="document.body.classList.toggle('side-hidden')"
+        >
+          ≡
+        </button>
+        <div class="logo">SAFETY<span>LENS</span></div>
+      </div>
+      <div class="tag">USER MANAGEMENT</div>
+      <div class="spacer"></div>
+      <div class="led"></div>
+    </header>
+
+    <main class="grid" style="grid-template-columns: 1fr;">
+      <section>
+        <div class="panel">
+          <h3>// OPERATOR MANAGEMENT</h3>
+          <table class="cam-table" id="users-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>OPERATOR ID</th>
+                <th>EMAIL</th>
+                <th>ROLE</th>
+                <th>STATUS</th>
+                <th data-admin>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="users-body">
+              <tr>
+                <td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">
+                  LOADING OPERATORS...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div class="hazard bottom"></div>
+    <script src="js/shell.js?v=5"></script>
+    <script src="js/users.js?v=5"></script>
+  </body>
+</html>

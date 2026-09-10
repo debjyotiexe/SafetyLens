@@ -1,18 +1,40 @@
 import base64, os, time, sqlite3
 import cv2
 import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Header, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Header, HTTPException, Response
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from ultralytics import YOLO
 
-from config import SNAPSHOT_DIR, DB_PATH, CAMERA_ID, RELEVANT_CLASSES, SETTINGS, MODEL_OPTIONS
-from compliance import check_compliance
-from database import init_db, log_violation, get_stats, verify_login, check_token
+from config import SNAPSHOT_DIR, DB_PATH, CAMERA_ID, RELEVANT_CLASSES, SETTINGS, MODEL_OPTIONS, ALERT_SETTINGS
+from database import (
+    init_db, log_violation, get_stats, verify_login, check_token,
+    get_incidents, resolve_incident, export_incidents_csv, update_camera_status,
+    register_user, DuplicateUserError, revoke_token, list_users, set_user_role, toggle_user_active
+)
+from pipeline import process_frame
+from alert_dispatch import dispatcher
+from camera_manager import CameraManager
 
 app = FastAPI(title="SafetyLens AI")
 init_db()
 os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+
+camera_manager = None
+
+@app.on_event("startup")
+def startup_event():
+    global camera_manager
+    camera_manager = CameraManager(model, RELEVANT_IDS)
+    for cam in camera_manager.cameras.values():
+        if cam.get("status") in ("online", "starting", "error"):
+            camera_manager.start_camera(cam["id"])
+
+@app.on_event("shutdown")
+def shutdown_event():
+    if camera_manager:
+        camera_manager.stop_all()
 
 # ---------- model management ----------
 model = None
@@ -62,50 +84,80 @@ class LoginBody(BaseModel):
     username: str
     password: str
 
+class RegisterBody(BaseModel):
+    username: str
+    password: str
+    email: str | None = None
+
+class RoleBody(BaseModel):
+    role: str
+
 class SettingsBody(BaseModel):
     settings: dict
 
-# ---------- visual helpers ----------
-COLORS = {
-    "Person": (0, 170, 255), "person": (0, 170, 255),
-    "helmet": (0, 255, 0), "Hardhat": (0, 255, 0), "vest": (0, 255, 0),
-    "no_helmet": (0, 0, 255), "NO-Hardhat": (0, 0, 255),
-}
-
-def draw_boxes(frame, detections, violations):
-    for d in detections:
-        if d["conf"] < 0.5:
-            continue
-        x1, y1, x2, y2 = d["box"]
-        color = COLORS.get(d["cls"], (255, 255, 255))
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(frame, f"{d['cls']} {d['conf']:.2f}", (x1, max(12, y1 - 6)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-    for v in violations:
-        x1, y1, x2, y2 = v["box"]
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
-        cv2.putText(frame, v["type"], (x1, min(frame.shape[0] - 4, y2 + 18)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-    return frame
-
-def save_snapshot(frame, v):
-    x1, y1, x2, y2 = v["box"]
-    crop = frame[max(0, y1 - 40):y2 + 60, max(0, x1 - 40):x2 + 40]
-    path = os.path.join(SNAPSHOT_DIR, f"{int(time.time()*1000)}_{v['type']}.jpg")
-    cv2.imwrite(path, crop)
-    return path
-
 # ---------- auth routes ----------
+@app.post("/api/register", status_code=201)
+def api_register(body: RegisterBody):
+    try:
+        res = register_user(body.username, body.password, body.email)
+        return {"status": "registered", "username": res["username"], "role": res["role"]}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except DuplicateUserError as e:
+        raise HTTPException(409, str(e))
+
 @app.post("/api/login")
 def login(body: LoginBody):
     res = verify_login(body.username, body.password)
+    if res and "error" in res:
+        if res["error"] == "locked":
+            retry_after = res.get("retry_after", 60)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Account temporarily locked due to failed login attempts. Try again in {retry_after} seconds.",
+                headers={"Retry-After": str(retry_after)}
+            )
+        elif res["error"] == "disabled":
+            raise HTTPException(403, "Account is disabled")
     if not res:
         raise HTTPException(401, "Invalid credentials")
     return res
 
+@app.post("/api/logout")
+def api_logout(authorization: str = Header(default=None), user=Depends(get_user)):
+    token = authorization[7:] if authorization and authorization.startswith("Bearer ") else None
+    if token:
+        revoke_token(token)
+    return {"status": "logged_out"}
+
 @app.get("/api/me")
 def me(user=Depends(get_user)):
     return user
+
+# ---------- user management routes (admin) ----------
+@app.get("/api/users")
+def api_list_users(user=Depends(get_admin)):
+    return list_users()
+
+@app.post("/api/users/{user_id}/role")
+def api_set_user_role(user_id: int, body: RoleBody, user=Depends(get_admin)):
+    try:
+        res = set_user_role(user_id, body.role)
+        if not res:
+            raise HTTPException(404, "User not found")
+        return {"status": "updated", **res}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+@app.post("/api/users/{user_id}/toggle-active")
+def api_toggle_user_active(user_id: int, user=Depends(get_admin)):
+    try:
+        res = toggle_user_active(user_id, user["username"])
+        if not res:
+            raise HTTPException(404, "User not found")
+        return {"status": "updated", **res}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 # ---------- settings routes ----------
 @app.get("/api/settings")
@@ -129,8 +181,101 @@ def write_settings(body: SettingsBody, user=Depends(get_admin)):
     if body.settings.get("model") and body.settings["model"] != LOADED_MODEL[0]:
         if load_model(body.settings["model"]):
             SETTINGS["model"] = body.settings["model"]
+            if camera_manager:
+                camera_manager.model = model
+                camera_manager.relevant_ids = RELEVANT_IDS
             msg = "applied + model reloaded"
     return {"status": msg, "settings": SETTINGS}
+
+class AlertSettingsBody(BaseModel):
+    settings: dict
+
+@app.get("/api/settings/alerts")
+def get_alert_settings(user=Depends(get_user)):
+    return ALERT_SETTINGS
+
+@app.post("/api/settings/alerts")
+def set_alert_settings(body: AlertSettingsBody, user=Depends(get_admin)):
+    ALERT_SETTINGS.update(body.settings)
+    dispatcher.update_settings(ALERT_SETTINGS)
+    return {"status": "applied", "settings": ALERT_SETTINGS}
+
+@app.post("/api/settings/alerts/test")
+def test_alert_settings(user=Depends(get_admin)):
+    dummy_v = {"type": "TEST_ALERT", "conf": 1.0, "timestamp": time.time(), "box": [0,0,0,0]}
+    res = {}
+    res["log"] = dispatcher.log_handler.send(dummy_v, "", "test_cam")
+    if ALERT_SETTINGS.get("email", {}).get("enabled"):
+        res["email"] = dispatcher.email_handler.send(dummy_v, "", "test_cam")
+    if ALERT_SETTINGS.get("webhook", {}).get("enabled"):
+        res["webhook"] = dispatcher.webhook_handler.send(dummy_v, "", "test_cam")
+    return {"status": "tested", "results": res}
+
+class CameraBody(BaseModel):
+    name: str
+    type: str
+    uri: str
+
+YOUTUBE_REJECT_MSG = ("YouTube links are not supported (OpenCV cannot decode YouTube streams). "
+                      "Use a local server file path or an rtsp:// stream.")
+
+def validate_camera_source(cam_type: str, uri: str):
+    if cam_type == "file":
+        if not os.path.isfile(uri):
+            raise HTTPException(400, f"File not found on server: {uri}")
+        return
+    if cam_type == "rtsp":
+        low = uri.lower()
+        if "youtube.com" in low or "youtu.be" in low:
+            raise HTTPException(400, YOUTUBE_REJECT_MSG)
+        if not uri.startswith("rtsp://"):
+            raise HTTPException(400, "Invalid RTSP uri: must start with rtsp://")
+        return
+    raise HTTPException(400, f"Unsupported camera type: {cam_type}")
+
+@app.get("/api/cameras")
+def api_get_cameras(user=Depends(get_user)):
+    return camera_manager.list_cameras()
+
+@app.post("/api/cameras")
+def api_add_camera(body: CameraBody, user=Depends(get_admin)):
+    validate_camera_source(body.type, body.uri)
+    cam_id = camera_manager.add_camera(body.name, body.type, body.uri)
+    return {"status": "added", "id": cam_id}
+
+@app.post("/api/cameras/{cam_id}/start")
+def api_start_camera(cam_id: str, user=Depends(get_admin)):
+    cam = next((c for c in camera_manager.list_cameras() if c["id"] == cam_id), None)
+    if not cam:
+        raise HTTPException(404, "Camera not found")
+    try:
+        validate_camera_source(cam["type"], cam["uri"])
+    except HTTPException as e:
+        update_camera_status(cam_id, "error", e.detail)
+        raise
+    camera_manager.start_camera(cam_id)
+    return {"status": "started"}
+
+@app.post("/api/cameras/{cam_id}/stop")
+def api_stop_camera(cam_id: str, user=Depends(get_admin)):
+    camera_manager.stop_camera(cam_id)
+    return {"status": "stopped"}
+
+@app.delete("/api/cameras/{cam_id}")
+def api_delete_camera(cam_id: str, user=Depends(get_admin)):
+    camera_manager.stop_camera(cam_id)
+    from database import delete_camera
+    delete_camera(cam_id)
+    if cam_id in camera_manager.cameras:
+        del camera_manager.cameras[cam_id]
+    return {"status": "deleted"}
+
+@app.get("/api/cameras/{cam_id}/snapshot")
+def api_camera_snapshot(cam_id: str, user=Depends(get_user)):
+    snap = camera_manager.get_snapshot(cam_id)
+    if not snap:
+        raise HTTPException(404, "No snapshot available")
+    return Response(content=snap, media_type="image/jpeg")
 
 # ---------- live stream ----------
 @app.websocket("/ws/stream")
@@ -145,50 +290,19 @@ async def stream(ws: WebSocket):
             break
 
         try:
-            frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-            if frame is None:
+            result = process_frame(data, CAMERA_ID, model, RELEVANT_IDS, SETTINGS)
+            if result is None:
                 continue
 
-            if model is None:
-                # Degraded mode: still send the frame, but no processing
-                _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
-                await ws.send_json({
-                    "frame": base64.b64encode(buf).decode(),
-                    "detections": [],
-                    "violations": [],
-                    "ts": time.time(),
-                    "error": "DEGRADED_MODE"
-                })
-                continue
-
-            inference_conf = min(SETTINGS["confidence"], SETTINGS.get("negative_confidence", 0.15))
-            results = model.predict(frame, conf=inference_conf, classes=RELEVANT_IDS, verbose=False)
-            detections = [
-                {"cls": model.names[int(b.cls[0])],
-                 "conf": float(b.conf[0]),
-                 "box": list(map(int, b.xyxy[0]))}
-                for b in results[0].boxes
-            ]
-
-            violations = check_compliance(detections)
-            for v in violations:
-                snap = save_snapshot(frame, v)
-                vid = log_violation(v["type"], v["conf"], snap, CAMERA_ID)
-                print(f"!!! VIOLATION #{vid}: {v['type']} ({v['conf']:.2f})")
-
-            annotated = draw_boxes(frame.copy(), detections, violations)
-            h, w = annotated.shape[:2]
-            if w > 800:
-                scale = 800 / w
-                annotated = cv2.resize(annotated, (800, int(h * scale)))
-
-            _, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 60])
-            await ws.send_json({
-                "frame": base64.b64encode(buf).decode(),
-                "detections": detections,
-                "violations": violations,
-                "ts": time.time(),
-            })
+            payload = {
+                "frame": base64.b64encode(result["jpeg_bytes"]).decode(),
+                "detections": result["detections"],
+                "violations": result["violations"],
+                "ts": result["ts"],
+            }
+            if "error" in result:
+                payload["error"] = result["error"]
+            await ws.send_json(payload)
         except Exception as e:
             print(f"[!] Frame processing error: {e}")
             continue
@@ -197,6 +311,44 @@ async def stream(ws: WebSocket):
 @app.get("/api/stats")
 def stats(user=Depends(get_user)):
     return get_stats()
+
+@app.get("/api/incidents")
+def api_get_incidents(
+    user=Depends(get_user),
+    type: str = None,
+    camera: str = None,
+    from_date: str = None,
+    to_date: str = None,
+    status: str = None,
+    page: int = 1,
+    limit: int = 50
+):
+    return get_incidents(type=type, camera=camera, from_date=from_date, to_date=to_date, status=status, page=page, limit=limit)
+
+@app.post("/api/incidents/{vid}/resolve")
+def api_resolve_incident(vid: int, user=Depends(get_admin)):
+    updated = resolve_incident(vid, user["username"])
+    if not updated:
+        raise HTTPException(404, "Incident not found")
+    return updated
+
+@app.get("/api/incidents/export")
+def api_export_incidents(
+    user=Depends(get_user),
+    type: str = None,
+    camera: str = None,
+    from_date: str = None,
+    to_date: str = None,
+    status: str = None
+):
+    csv_data = export_incidents_csv({
+        "type": type,
+        "camera": camera,
+        "from_date": from_date,
+        "to_date": to_date,
+        "status": status
+    })
+    return Response(content=csv_data, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=incidents.csv"})
 
 @app.get("/api/snapshots")
 def snapshots(user=Depends(get_user)):
@@ -217,6 +369,13 @@ def reset(user=Depends(get_admin)):
     return {"status": "reset"}
 
 app.mount("/snapshots", StaticFiles(directory=SNAPSHOT_DIR), name="snapshots")
+
+LANDING_PATH = os.path.join(os.path.dirname(__file__), "..", "frontend", "landing.html")
+
+@app.get("/")
+async def read_landing():
+    target = LANDING_PATH if os.path.exists(LANDING_PATH) else "../frontend/landing.html"
+    return FileResponse(target)
 
 # VERY IMPORTANT: mount static files LAST!
 app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")

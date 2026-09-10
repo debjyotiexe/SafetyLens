@@ -15,6 +15,7 @@
 }
 
 :root {
+  color-scheme: dark;
   --bg: #07090c;
   --panel: #0d1218;
   --line: #1c2733;
@@ -592,6 +593,33 @@ body.shelled {
   font-family: var(--mono);
   padding: 8px;
 }
+/* ---- ALERT DISPATCH panel: dark inputs + container boxes ---- */
+.alert-input {
+  width: 100%;
+  background: #05070a;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 9px;
+}
+.alert-input:focus {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: 0 0 12px rgba(255, 180, 0, 0.25);
+}
+.alert-input::placeholder {
+  color: var(--muted);
+}
+.alert-opts {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  background: #0a0f14;
+}
 .toast {
   position: fixed;
   right: 18px;
@@ -730,4 +758,88 @@ body {
   max-height: 86vh;
   border: 2px solid var(--amber);
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.85);
+}
+
+/* ============ CAMERAS & INCIDENTS ============ */
+.cam-table, .incident-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.cam-table th, .incident-table th,
+.cam-table td, .incident-table td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.cam-table th, .incident-table th {
+  color: var(--amber);
+  letter-spacing: 2px;
+  font-size: 11px;
+}
+.status-badge {
+  display: inline-block;
+  padding: 3px 6px;
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  background: var(--line);
+  color: var(--text);
+}
+.status-online {
+  background: rgba(31, 219, 132, 0.15);
+  color: var(--green);
+  border: 1px solid var(--green);
+}
+.status-error {
+  background: rgba(255, 59, 48, 0.15);
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+.status-offline {
+  background: rgba(142, 154, 168, 0.15);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.filter-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 15px;
+}
+.filter-bar select, .filter-bar input {
+  background: #05070a;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px;
+}
+.filter-bar select:focus, .filter-bar input:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+.cam-thumb {
+  width: 120px;
+  height: 80px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+.cam-err {
+  display: block;
+  margin-top: 5px;
+  max-width: 260px;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--red);
+}
+.input-hint {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin-top: -8px;
 }

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafetyLens // Incidents</title>
+    <link rel="stylesheet" href="css/style.css?v=5" />
+  </head>
+  <body data-page="incidents">
+    <div class="hazard top"></div>
+    <header class="topbar">
+      <div class="brand">
+        <button
+          class="btn hamburger"
+          title="Toggle sidebar"
+          onclick="document.body.classList.toggle('side-hidden')"
+        >
+          %
+        </button>
+        <div class="logo">SAFETY<span>LENS</span></div>
+      </div>
+      <div class="tag">INCIDENTS</div>
+      <div class="spacer"></div>
+      <div class="led"></div>
+    </header>
+
+    <main class="grid" style="grid-template-columns: 1fr;">
+      <section>
+        <div class="panel">
+          <h3>// FILTER INCIDENTS</h3>
+          <div class="filter-bar">
+            <select id="filter-type">
+              <option value="">ALL TYPES</option>
+              <option value="NO_HELMET">NO_HELMET</option>
+              <option value="NO_VEST">NO_VEST</option>
+              <option value="NO_GLOVES">NO_GLOVES</option>
+              <option value="NO_GOGGLES">NO_GOGGLES</option>
+              <option value="NO_BOOTS">NO_BOOTS</option>
+            </select>
+            <select id="filter-status">
+              <option value="">ALL STATUSES</option>
+              <option value="open">OPEN</option>
+              <option value="resolved">RESOLVED</option>
+            </select>
+            <input type="text" id="filter-cam" placeholder="Camera ID" />
+            <input type="date" id="filter-from" />
+            <input type="date" id="filter-to" />
+            <button class="btn" onclick="applyFilters()">FILTER ▸</button>
+            <button class="btn" onclick="exportCSV()">EXPORT CSV ▸</button>
+          </div>
+        </div>
+        
+        <div class="panel" style="margin-top: 14px">
+          <h3>// INCIDENT LOG</h3>
+          <table class="incident-table" id="incident-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>TYPE</th>
+                <th>CAMERA</th>
+                <th>CONF</th>
+                <th>SNAPSHOT</th>
+                <th>STATUS</th>
+                <th>DATE</th>
+                <th data-admin>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
+          <div class="controls" style="margin-top: 10px; justify-content: flex-end;">
+             <button class="btn" onclick="prevPage()">◂ PREV</button>
+             <span class="tag" id="page-info">PAGE 1</span>
+             <button class="btn" onclick="nextPage()">NEXT ▸</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- snapshot modal -->
+    <div id="modal" class="modal" onclick="this.classList.remove('open')">
+      <img id="modal-img" src="" alt="violation snapshot" />
+    </div>
+
+    <div class="hazard bottom"></div>
+    <script src="js/shell.js?v=5"></script>
+    <script src="js/incidents.js?v=5"></script>
+  </body>
+</html>

@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libxcb1 \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # CPU PyTorch

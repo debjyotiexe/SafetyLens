@@ -5,6 +5,12 @@ _cooldown = {}
 _streak = {}
 _trackers = {} # lightweight person tracking across frames
 
+
+def make_compliance_state():
+    """Create an isolated compliance state for per-camera tracking."""
+    return {"cooldown": {}, "streak": {}, "trackers": {}}
+
+
 def center(box):
     return (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
 
@@ -20,26 +26,28 @@ def iou(a, b):
     union = (ax2 - ax1) * (ay2 - ay1) + (bx2 - bx1) * (by2 - by1) - inter
     return inter / union if union > 0 else 0
 
-def get_person_ids(persons_boxes):
+def get_person_ids(persons_boxes, trackers=None):
+    if trackers is None:
+        trackers = _trackers
     now = time.time()
 
     # Age out missed ones
     to_delete = []
-    for k, v in _trackers.items():
+    for k, v in trackers.items():
         if now - v['ts'] > 2.0 or v['missed'] > 10:
             to_delete.append(k)
     for k in to_delete:
-        del _trackers[k]
+        del trackers[k]
 
     assigned = {}
     unassigned_boxes = list(range(len(persons_boxes)))
-    unassigned_tracks = list(_trackers.keys())
+    unassigned_tracks = list(trackers.keys())
 
     # Greedy IoU matching
     pairs = []
     for i, box in enumerate(persons_boxes):
         for k in unassigned_tracks:
-            score = iou(box, _trackers[k]['box'])
+            score = iou(box, trackers[k]['box'])
             if score > 0.3: # IoU threshold
                 pairs.append((score, i, k))
 
@@ -52,28 +60,38 @@ def get_person_ids(persons_boxes):
             assigned_boxes.add(i)
             assigned_tracks.add(k)
             assigned[i] = k
-            _trackers[k]['box'] = persons_boxes[i]
-            _trackers[k]['ts'] = now
-            _trackers[k]['missed'] = 0
+            trackers[k]['box'] = persons_boxes[i]
+            trackers[k]['ts'] = now
+            trackers[k]['missed'] = 0
 
     # New tracks
     for i in unassigned_boxes:
         if i not in assigned_boxes:
-            new_id = max(_trackers.keys(), default=0) + 1
+            new_id = max(trackers.keys(), default=0) + 1
             assigned[i] = new_id
-            _trackers[new_id] = {'box': persons_boxes[i], 'ts': now, 'missed': 0}
+            trackers[new_id] = {'box': persons_boxes[i], 'ts': now, 'missed': 0}
 
     # Update missed
     for k in unassigned_tracks:
         if k not in assigned_tracks:
-            _trackers[k]['missed'] += 1
+            trackers[k]['missed'] += 1
 
     return assigned
 
-def check_compliance(detections):
+def check_compliance(detections, state=None):
     S = SETTINGS
     now = time.time()
     candidates = []
+
+    # Resolve state dicts: use per-camera state if provided, else module globals
+    if state is not None:
+        cooldown = state["cooldown"]
+        streak = state["streak"]
+        trackers = state["trackers"]
+    else:
+        cooldown = _cooldown
+        streak = _streak
+        trackers = _trackers
 
     persons = [d for d in detections if d["cls"] in ("Person", "person") and d["conf"] >= S["confidence"]]
 
@@ -88,7 +106,7 @@ def check_compliance(detections):
     no_gloves = [d for d in detections if d["cls"] == "no_gloves" and d["conf"] >= S.get("negative_confidence", 0.15)]
     no_boots = [d for d in detections if d["cls"] == "no_boots" and d["conf"] >= S.get("negative_confidence", 0.15)]
 
-    box_to_pid = get_person_ids([p["box"] for p in persons])
+    box_to_pid = get_person_ids([p["box"] for p in persons], trackers=trackers)
 
     for i, p in enumerate(persons):
         pid = box_to_pid[i]
@@ -133,24 +151,24 @@ def check_compliance(detections):
     for v in candidates:
         key = (v["type"], v["pid"])
         current_keys.add(key)
-        _streak[key] = _streak.get(key, 0) + 1
+        streak[key] = streak.get(key, 0) + 1
 
-        if _streak[key] < S["min_frames"]:
+        if streak[key] < S["min_frames"]:
             continue
 
-        if now - _cooldown.get(key, 0) < S["cooldown_sec"]:
+        if now - cooldown.get(key, 0) < S["cooldown_sec"]:
             continue
 
-        _cooldown[key] = now
+        cooldown[key] = now
         kept.append(v)
 
     keys_to_delete = []
-    for k in _streak:
+    for k in streak:
         if k not in current_keys:
-            _streak[k] -= 1
-            if _streak[k] <= 0:
+            streak[k] -= 1
+            if streak[k] <= 0:
                 keys_to_delete.append(k)
     for k in keys_to_delete:
-        del _streak[k]
+        del streak[k]
 
     return kept

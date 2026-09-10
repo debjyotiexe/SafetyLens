@@ -3,7 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <title>SafetyLens // Access</title>
-    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/style.css?v=5" />
+    <style>
+      .sub-link a:hover {
+        color: var(--amber) !important;
+      }
+    </style>
   </head>
   <body>
     <div class="hazard"></div>
@@ -13,17 +18,20 @@
         <div class="sub">SITE OPS COMMAND // RESTRICTED ACCESS</div>
         <div class="panel">
           <div class="field">
-            <label>OPERATOR ID</label
-            ><input id="user" autocomplete="username" />
+            <label>OPERATOR ID</label>
+            <input id="user" autocomplete="username" />
           </div>
           <div class="field">
-            <label>PASSCODE</label
-            ><input id="pass" type="password" autocomplete="current-password" />
+            <label>PASSCODE</label>
+            <input id="pass" type="password" autocomplete="current-password" />
           </div>
           <button class="btn active" style="width: 100%" onclick="doLogin()">
             AUTHENTICATE ▸
           </button>
           <div class="login-err" id="err"></div>
+          <div class="sub-link" style="margin-top: 14px; text-align: center; font-family: var(--mono); font-size: 11px; letter-spacing: 1px;">
+            <a href="register.html" style="color: var(--muted); text-decoration: none; transition: 0.15s;">NEW OPERATOR? REGISTER ACCOUNT ▸</a>
+          </div>
         </div>
         <div class="hint">
           DEFAULT CREDS — admin / admin123 · viewer / view123
@@ -41,8 +49,9 @@
           body: JSON.stringify({ username: u.value, password: p.value }),
         });
         if (!r.ok) {
+          const data = await r.json().catch(() => ({}));
           document.getElementById("err").textContent =
-            "ACCESS DENIED — invalid credentials";
+            data.detail || "ACCESS DENIED — invalid credentials";
           return;
         }
         const d = await r.json();

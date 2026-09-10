@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafetyLens // Operator Registration</title>
+    <link rel="stylesheet" href="css/style.css?v=5" />
+    <style>
+      .reg-msg {
+        font-family: var(--mono);
+        font-size: 12px;
+        min-height: 18px;
+        margin-top: 10px;
+        text-align: center;
+      }
+      .reg-msg.err {
+        color: var(--red);
+      }
+      .reg-msg.ok {
+        color: var(--green);
+      }
+      .sub-link {
+        margin-top: 16px;
+        text-align: center;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 1px;
+      }
+      .sub-link a {
+        color: var(--muted);
+        text-decoration: none;
+        transition: 0.15s;
+      }
+      .sub-link a:hover {
+        color: var(--amber);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hazard"></div>
+    <div class="login-wrap">
+      <div class="login-box">
+        <div class="logo">SAFETY<span>LENS</span></div>
+        <div class="sub">SITE OPS COMMAND // OPERATOR ONBOARDING</div>
+        <div class="panel">
+          <div class="field">
+            <label>OPERATOR ID (USERNAME)</label>
+            <input id="user" autocomplete="username" placeholder="e.g. operator_01" required />
+          </div>
+          <div class="field">
+            <label>EMAIL ADDRESS (OPTIONAL)</label>
+            <input id="email" type="email" autocomplete="email" placeholder="operator@site.local" />
+          </div>
+          <div class="field">
+            <label>PASSCODE (MINIMUM 8 CHARACTERS)</label>
+            <input id="pass" type="password" autocomplete="new-password" placeholder="••••••••" required />
+          </div>
+          <div class="field">
+            <label>CONFIRM PASSCODE</label>
+            <input id="confirm_pass" type="password" autocomplete="new-password" placeholder="••••••••" required />
+          </div>
+          <button class="btn active" style="width: 100%" id="reg-btn" onclick="doRegister()">
+            REGISTER OPERATOR ▸
+          </button>
+          <div class="reg-msg" id="msg"></div>
+          <div class="sub-link">
+            <a href="login.html">ALREADY REGISTERED? AUTHENTICATE ▸</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hazard bottom"></div>
+
+    <script>
+      const u = document.getElementById("user"),
+        e = document.getElementById("email"),
+        p = document.getElementById("pass"),
+        cp = document.getElementById("confirm_pass"),
+        msg = document.getElementById("msg"),
+        btn = document.getElementById("reg-btn");
+
+      function showMsg(text, isErr = true) {
+        msg.textContent = text;
+        msg.className = "reg-msg " + (isErr ? "err" : "ok");
+      }
+
+      async function doRegister() {
+        const username = u.value.trim();
+        const email = e.value.trim() || null;
+        const password = p.value;
+        const confirm = cp.value;
+
+        if (!username) {
+          showMsg("REGISTRATION REJECTED — operator ID cannot be empty");
+          u.focus();
+          return;
+        }
+
+        if (password.length < 8) {
+          showMsg("REGISTRATION REJECTED — passcode must be at least 8 characters");
+          p.focus();
+          return;
+        }
+
+        if (password !== confirm) {
+          showMsg("REGISTRATION REJECTED — passcode confirmation mismatch");
+          cp.focus();
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "REGISTERING...";
+
+        try {
+          const res = await fetch("/api/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, email, password }),
+          });
+
+          if (res.status === 201) {
+            showMsg("OPERATOR REGISTERED — REDIRECTING TO AUTHENTICATION...", false);
+            setTimeout(() => {
+              location.replace("login.html");
+            }, 1200);
+            return;
+          }
+
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 409) {
+            showMsg("REGISTRATION REJECTED — USERNAME ALREADY EXISTS");
+          } else if (res.status === 400) {
+            showMsg("VALIDATION ERROR — " + (data.detail || "Invalid input"));
+          } else {
+            showMsg("REGISTRATION FAILED — " + (data.detail || "Server error"));
+          }
+        } catch (err) {
+          showMsg("NETWORK ERROR — Could not connect to API server");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "REGISTER OPERATOR ▸";
+        }
+      }
+
+      [u, e, p, cp].forEach((input) => {
+        input.addEventListener("keydown", (evt) => {
+          if (evt.key === "Enter") doRegister();
+        });
+      });
+    </script>
+  </body>
+</html>

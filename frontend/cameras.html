@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafetyLens // Cameras</title>
+    <link rel="stylesheet" href="css/style.css?v=5" />
+  </head>
+  <body data-page="cameras">
+    <div class="hazard top"></div>
+    <header class="topbar">
+      <div class="brand">
+        <button
+          class="btn hamburger"
+          title="Toggle sidebar"
+          onclick="document.body.classList.toggle('side-hidden')"
+        >
+          %
+        </button>
+        <div class="logo">SAFETY<span>LENS</span></div>
+      </div>
+      <div class="tag">CAMERAS</div>
+      <div class="spacer"></div>
+      <div class="led"></div>
+    </header>
+
+    <main class="grid" style="grid-template-columns: 1fr;">
+      <section>
+        <div class="panel" data-admin>
+          <h3>// ADD CAMERA</h3>
+          <div class="filter-bar">
+            <input type="text" id="cam-name" placeholder="Name (e.g. Zone 1)" style="flex: 1;"/>
+            <select id="cam-type" style="flex: 1;">
+              <option value="rtsp">RTSP Stream</option>
+              <option value="file">Video File</option>
+            </select>
+            <input type="text" id="cam-uri" placeholder="URI (e.g. rtsp://...)" style="flex: 2;" />
+            <button class="btn" onclick="addCamera()">ADD CAMERA ▸</button>
+          </div>
+          <div class="input-hint">file = absolute server path (e.g. /app/assets/video.mp4) &middot; rtsp = rtsp://host/stream &middot; YouTube links unsupported</div>
+        </div>
+        
+        <div class="panel" style="margin-top: 14px">
+          <h3>// REGISTERED CAMERAS</h3>
+          <table class="cam-table" id="cam-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>NAME</th>
+                <th>TYPE</th>
+                <th>URI</th>
+                <th>STATUS</th>
+                <th data-admin>ACTIONS</th>
+                <th>THUMBNAIL</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div class="hazard bottom"></div>
+    <script src="js/shell.js?v=5"></script>
+    <script src="js/cameras.js?v=5"></script>
+  </body>
+</html>

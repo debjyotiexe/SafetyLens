@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>SafetyLens // Settings</title>
-    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/style.css?v=5" />
   </head>
   <body data-page="settings">
     <div class="hazard top"></div>
@@ -89,12 +89,29 @@
           ><span></span
         ></label>
       </div>
+      <div class="panel" style="margin-top: 14px">
+        <h3>// ALERT DISPATCH</h3>
+        <label class="ctl">EMAIL ALERTS <div id="t-alert_email" class="switch"></div><span></span></label>
+        <div id="email-opts" class="alert-opts">
+          <input type="text" id="email-host" class="alert-input" placeholder="SMTP Host (e.g. smtp.gmail.com)" />
+          <input type="number" id="email-port" class="alert-input" placeholder="Port (e.g. 587)" />
+          <input type="text" id="email-from" class="alert-input" placeholder="From Address" />
+          <input type="text" id="email-to" class="alert-input" placeholder="To Addresses (comma separated)" />
+          <input type="text" id="email-user" class="alert-input" placeholder="Username" />
+          <input type="password" id="email-pass" class="alert-input" placeholder="Password" />
+        </div>
+        <label class="ctl">WEBHOOK ALERTS <div id="t-alert_webhook" class="switch"></div><span></span></label>
+        <div id="webhook-opts" class="alert-opts">
+          <input type="text" id="webhook-url" class="alert-input" placeholder="Webhook URL" />
+        </div>
+        <button class="btn" id="test-alert-btn" onclick="testAlerts()" style="margin-top: 10px;">SEND TEST ALERT ▸</button>
+      </div>
       <div style="margin-top: 14px">
         <button class="btn active" id="save-btn">APPLY SETTINGS ▸</button>
       </div>
     </main>
     <div class="hazard"></div>
-    <script src="js/shell.js"></script>
-    <script src="js/settings.js"></script>
+    <script src="js/shell.js?v=5"></script>
+    <script src="js/settings.js?v=5"></script>
   </body>
 </html>
