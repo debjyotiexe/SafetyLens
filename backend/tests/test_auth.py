@@ -290,7 +290,7 @@ def test_users_static_serving():
     res_users = client.get("/users.html")
     assert res_users.status_code == 200
     assert "OPERATOR MANAGEMENT" in res_users.text
-    assert "users.js?v=5" in res_users.text
+    assert "users.js?v=6" in res_users.text
 
     res_js = client.get("/js/users.js")
     assert res_js.status_code == 200

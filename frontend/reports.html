@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafetyLens // Reports</title>
+    <link rel="stylesheet" href="css/style.css?v=6" />
+  </head>
+  <body data-page="reports">
+    <div class="hazard top"></div>
+    <header class="topbar">
+      <div class="brand">
+        <button
+          class="btn hamburger"
+          title="Toggle sidebar"
+          onclick="document.body.classList.toggle('side-hidden')"
+        >
+          ≡
+        </button>
+        <div class="logo">SAFETY<span>LENS</span></div>
+      </div>
+      <div class="tag">REPORTS // AUDIT &amp; COMPLIANCE</div>
+      <div class="spacer"></div>
+      <div class="led"></div>
+      <div class="clock" id="clock">--:--:--</div>
+    </header>
+
+    <main class="grid" style="grid-template-columns: 1fr;">
+      <section>
+        <!-- Filter and Action Controls -->
+        <div class="panel" id="report-controls">
+          <h3>// REPORT BUILDER CONTROLS</h3>
+          <div class="filter-bar" style="flex-wrap: wrap;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span class="tag">FROM</span>
+              <input type="date" id="filter-from" />
+              <span class="tag">TO</span>
+              <input type="date" id="filter-to" />
+            </div>
+            <select id="filter-cam">
+              <option value="">ALL CAMERAS</option>
+            </select>
+            <select id="filter-type">
+              <option value="">ALL TYPES</option>
+              <option value="NO_HELMET">NO_HELMET</option>
+              <option value="NO_VEST">NO_VEST</option>
+              <option value="NO_GLOVES">NO_GLOVES</option>
+              <option value="NO_GOGGLES">NO_GOGGLES</option>
+              <option value="NO_BOOTS">NO_BOOTS</option>
+            </select>
+            <button class="btn active" onclick="generateReport()">GENERATE REPORT ▸</button>
+            <button class="btn" onclick="exportReportCSV()">EXPORT CSV ▸</button>
+            <button class="btn" onclick="printReport()" style="border-color: var(--cyan); color: var(--cyan);">PRINT / SAVE AS PDF ▸</button>
+          </div>
+        </div>
+
+        <!-- Generated Report Sheet (printable) -->
+        <div id="report-view" class="report-view" style="display: none; margin-top: 14px;">
+          <!-- Official Report Header -->
+          <div class="report-header">
+            <div class="report-brand">
+              <h2>SAFETY<span>LENS</span> AI // SITE OPS COMMAND</h2>
+              <div class="report-title">FORMAL PPE COMPLIANCE AUDIT REPORT</div>
+            </div>
+            <div class="report-meta-grid">
+              <div><b>SITE:</b> SafetyLens Industrial Operations</div>
+              <div><b>DATE RANGE:</b> <span id="rep-range">--</span></div>
+              <div><b>GENERATED AT:</b> <span id="rep-date">--</span></div>
+              <div><b>AUDITOR / OPERATOR:</b> <span id="rep-user">--</span></div>
+              <div><b>FILTERS:</b> <span id="rep-filters">NONE</span></div>
+            </div>
+          </div>
+
+          <!-- Executive Summary KPI Strip -->
+          <div class="panel" style="margin-top: 18px;">
+            <h3>// EXECUTIVE SUMMARY</h3>
+            <div class="report-kpi-strip">
+              <div class="rep-kpi">
+                <div class="rep-val amber" id="rep-k-total">0</div>
+                <div class="rep-lbl">TOTAL VIOLATIONS</div>
+              </div>
+              <div class="rep-kpi">
+                <div class="rep-val red" id="rep-k-open">0</div>
+                <div class="rep-lbl">OPEN INCIDENTS</div>
+              </div>
+              <div class="rep-kpi">
+                <div class="rep-val green" id="rep-k-resolved">0</div>
+                <div class="rep-lbl">RESOLVED INCIDENTS</div>
+              </div>
+              <div class="rep-kpi">
+                <div class="rep-val" id="rep-k-res-rate">0%</div>
+                <div class="rep-lbl">RESOLUTION RATE</div>
+              </div>
+              <div class="rep-kpi">
+                <div class="rep-val green" id="rep-k-score">100.0%</div>
+                <div class="rep-lbl">COMPLIANCE INDEX</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Breakdown Tables Grid -->
+          <div class="report-tables-grid" style="margin-top: 18px;">
+            <div class="panel">
+              <h3>// BREAKDOWN BY VIOLATION TYPE</h3>
+              <table class="report-table" id="rep-table-type">
+                <thead>
+                  <tr>
+                    <th>VIOLATION TYPE</th>
+                    <th style="text-align: right;">COUNT</th>
+                    <th style="text-align: right;">SHARE</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <div class="panel">
+              <h3>// BREAKDOWN BY CAMERA SOURCE</h3>
+              <table class="report-table" id="rep-table-camera">
+                <thead>
+                  <tr>
+                    <th>CAMERA ID</th>
+                    <th style="text-align: right;">COUNT</th>
+                    <th style="text-align: right;">SHARE</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Top-10 Evidence Gallery -->
+          <div class="panel" style="margin-top: 18px;">
+            <h3>// TOP AUDIT EVIDENCE INCIDENTS</h3>
+            <div class="evidence-grid" id="rep-evidence-grid"></div>
+          </div>
+
+          <!-- Report Footer -->
+          <div class="report-footer" style="margin-top: 20px;">
+            CONFIDENTIAL // GENERATED AUTOMATICALLY BY SAFETYLENS AI AUDIT ENGINE // ALL RIGHTS RESERVED
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- snapshot modal -->
+    <div id="modal" class="modal" onclick="this.classList.remove('open')">
+      <img id="modal-img" src="" alt="violation snapshot" />
+    </div>
+
+    <div class="hazard bottom"></div>
+    <script src="js/shell.js?v=6"></script>
+    <script src="js/reports.js?v=6"></script>
+  </body>
+</html>

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafetyLens // Analytics</title>
+    <link rel="stylesheet" href="css/style.css?v=6" />
+    <script src="js/chart.umd.js?v=6"></script>
+  </head>
+  <body data-page="analytics">
+    <div class="hazard top"></div>
+    <header class="topbar">
+      <div class="brand">
+        <button
+          class="btn hamburger"
+          title="Toggle sidebar"
+          onclick="document.body.classList.toggle('side-hidden')"
+        >
+          ≡
+        </button>
+        <div class="logo">SAFETY<span>LENS</span></div>
+      </div>
+      <div class="tag">ANALYTICS // METRICS &amp; TRENDS</div>
+      <div class="spacer"></div>
+      <div class="led"></div>
+      <div class="clock" id="clock">--:--:--</div>
+    </header>
+
+    <main class="grid" style="grid-template-columns: 1fr;">
+      <section>
+        <!-- Time Window Controls -->
+        <div class="panel">
+          <h3>// TIME WINDOW &amp; RANGE</h3>
+          <div class="filter-bar" style="flex-wrap: wrap; margin-bottom: 0;">
+            <div class="controls" style="margin-right: 12px;">
+              <button class="btn" id="btn-24h" onclick="setPreset('24h')">24 HOURS</button>
+              <button class="btn active" id="btn-7d" onclick="setPreset('7d')">7 DAYS</button>
+              <button class="btn" id="btn-30d" onclick="setPreset('30d')">30 DAYS</button>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span class="tag">FROM</span>
+              <input type="date" id="filter-from" />
+              <span class="tag">TO</span>
+              <input type="date" id="filter-to" />
+              <button class="btn active" onclick="applyCustomRange()">APPLY ▸</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Grid -->
+        <div class="kpi-grid" style="margin-top: 14px;">
+          <div class="panel">
+            <h3>// TOTAL VIOLATIONS</h3>
+            <div class="kpi">
+              <span class="val amber" id="k-total">0</span>
+              <span class="lbl">RECORDED INCIDENTS</span>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>// OPEN VS RESOLVED</h3>
+            <div class="kpi">
+              <div style="display: flex; gap: 14px; align-items: baseline;">
+                <span class="val red" id="k-open">0</span>
+                <span class="lbl" style="color: var(--red);">OPEN</span>
+                <span style="color: var(--muted); font-size: 24px; font-weight: 700;">/</span>
+                <span class="val green" id="k-resolved">0</span>
+                <span class="lbl" style="color: var(--green);">RESOLVED</span>
+              </div>
+              <div style="font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 4px;">
+                RESOLUTION RATE: <b id="k-res-rate" style="color: var(--green);">0%</b>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>// BUSIEST CAMERA</h3>
+            <div class="kpi">
+              <span class="val" id="k-busiest" style="color: var(--cyan); font-size: 36px;">NONE</span>
+              <span class="lbl">HIGHEST VIOLATION VOLUME</span>
+              <div style="font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 4px;">
+                INCIDENTS: <b id="k-busiest-count" style="color: var(--amber);">0</b>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>// COMPLIANCE SCORE</h3>
+            <div class="kpi">
+              <span class="val green" id="k-score">100.0%</span>
+              <span class="lbl">CLEAN-HOUR COMPLIANCE INDEX</span>
+              <div style="font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 4px;" id="k-formula">
+                FORMULA: 100 * (clean_hours / total_hours)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2x2 Chart Grid -->
+        <div class="analytics-grid" style="margin-top: 14px;">
+          <div class="panel">
+            <h3>// VIOLATIONS OVER TIME (DAILY TREND)</h3>
+            <div class="chartbox tall"><canvas id="chart-trend"></canvas></div>
+          </div>
+
+          <div class="panel">
+            <h3>// 24-HOUR INCIDENT DISTRIBUTION</h3>
+            <div class="chartbox tall"><canvas id="chart-hourly"></canvas></div>
+          </div>
+
+          <div class="panel">
+            <h3>// VIOLATIONS BY TYPE</h3>
+            <div class="chartbox tall"><canvas id="chart-type"></canvas></div>
+          </div>
+
+          <div class="panel">
+            <h3>// VIOLATIONS BY CAMERA</h3>
+            <div class="chartbox tall"><canvas id="chart-camera"></canvas></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="hazard bottom"></div>
+    <script src="js/shell.js?v=6"></script>
+    <script src="js/analytics.js?v=6"></script>
+  </body>
+</html>

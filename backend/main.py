@@ -1,8 +1,8 @@
-import base64, os, time, sqlite3
+import base64, os, time, sqlite3, io
 import cv2
 import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Header, HTTPException, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from ultralytics import YOLO
@@ -11,7 +11,8 @@ from config import SNAPSHOT_DIR, DB_PATH, CAMERA_ID, RELEVANT_CLASSES, SETTINGS,
 from database import (
     init_db, log_violation, get_stats, verify_login, check_token,
     get_incidents, resolve_incident, export_incidents_csv, update_camera_status,
-    register_user, DuplicateUserError, revoke_token, list_users, set_user_role, toggle_user_active
+    register_user, DuplicateUserError, revoke_token, list_users, set_user_role, toggle_user_active,
+    get_analytics_summary, get_report_data, export_report_csv
 )
 from pipeline import process_frame
 from alert_dispatch import dispatcher
@@ -349,6 +350,51 @@ def api_export_incidents(
         "status": status
     })
     return Response(content=csv_data, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=incidents.csv"})
+
+# ---------- analytics & reports routes ----------
+@app.get("/api/analytics/summary")
+def api_analytics_summary(
+    from_date: str = None,
+    to_date: str = None,
+    user=Depends(get_user)
+):
+    return get_analytics_summary(from_date=from_date, to_date=to_date)
+
+@app.get("/api/reports/generate")
+def api_reports_generate(
+    from_date: str = None,
+    to_date: str = None,
+    camera: str = None,
+    type: str = None,
+    user=Depends(get_user)
+):
+    return get_report_data(
+        from_date=from_date,
+        to_date=to_date,
+        camera=camera,
+        type=type,
+        generated_by=user.get("username", "operator")
+    )
+
+@app.get("/api/reports/export")
+def api_reports_export(
+    from_date: str = None,
+    to_date: str = None,
+    camera: str = None,
+    type: str = None,
+    user=Depends(get_user)
+):
+    csv_data = export_report_csv({
+        "from_date": from_date,
+        "to_date": to_date,
+        "camera": camera,
+        "type": type
+    })
+    return StreamingResponse(
+        io.StringIO(csv_data),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=safetylens_report.csv"}
+    )
 
 @app.get("/api/snapshots")
 def snapshots(user=Depends(get_user)):

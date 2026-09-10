@@ -1,4 +1,5 @@
 import sqlite3, hashlib, secrets, csv, io, hmac, time
+from datetime import datetime, timedelta
 import config
 
 def _conn():
@@ -114,6 +115,8 @@ def init_db():
             error_msg TEXT,
             created_at DATETIME DEFAULT (datetime('now','localtime'))
         );
+        CREATE INDEX IF NOT EXISTS idx_violations_created_at ON violations(created_at);
+        CREATE INDEX IF NOT EXISTS idx_violations_cam_type ON violations(camera_id, type);
         """)
 
         # Robust migration for violations table
@@ -420,3 +423,341 @@ def toggle_user_active(user_id: int, current_admin_username: str) -> dict:
             c.execute("DELETE FROM tokens WHERE username = ?", (user["username"],))
 
         return {"id": user_id, "username": user["username"], "is_active": new_status}
+
+
+# ---------- analytics & reports aggregates ----------
+def _parse_date_range(from_date=None, to_date=None, default_days=7):
+    now = datetime.now()
+    if not to_date:
+        to_dt = now.replace(hour=23, minute=59, second=59, microsecond=0)
+    else:
+        to_str = str(to_date).strip().replace("T", " ")
+        if len(to_str) == 10:
+            to_str += " 23:59:59"
+        to_dt = datetime.strptime(to_str[:19], "%Y-%m-%d %H:%M:%S")
+
+    if not from_date:
+        from_dt = (now - timedelta(days=default_days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        from_str = str(from_date).strip().replace("T", " ")
+        if len(from_str) == 10:
+            from_str += " 00:00:00"
+        from_dt = datetime.strptime(from_str[:19], "%Y-%m-%d %H:%M:%S")
+
+    if from_dt > to_dt:
+        from_dt, to_dt = to_dt, from_dt
+
+    from_str_out = from_dt.strftime("%Y-%m-%d %H:%M:%S")
+    to_str_out = to_dt.strftime("%Y-%m-%d %H:%M:%S")
+    return from_dt, to_dt, from_str_out, to_str_out
+
+
+def get_analytics_summary(from_date=None, to_date=None) -> dict:
+    from_dt, to_dt, from_str_out, to_str_out = _parse_date_range(from_date, to_date, default_days=7)
+
+    # Calculate total hours in range
+    if to_dt.hour == 23 and to_dt.minute == 59 and to_dt.second == 59 and from_dt.hour == 0 and from_dt.minute == 0 and from_dt.second == 0:
+        total_hours = float(((to_dt.date() - from_dt.date()).days + 1) * 24)
+    else:
+        total_seconds = (to_dt - from_dt).total_seconds()
+        total_hours = max(1.0, round(total_seconds / 3600.0, 2))
+
+    with _conn() as c:
+        # 1. Total and resolved counts
+        row = c.execute("""
+            SELECT 
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) AS resolved
+            FROM violations
+            WHERE created_at >= ? AND created_at <= ?
+        """, (from_str_out, to_str_out)).fetchone()
+
+        total = row[0] or 0
+        resolved = row[1] or 0
+        open_cnt = total - resolved
+        resolution_rate = round((resolved / total) * 100.0, 1) if total > 0 else 100.0
+
+        # 2. Distinct violation hours
+        violation_hours_count = c.execute("""
+            SELECT COUNT(DISTINCT strftime('%Y-%m-%d %H', created_at))
+            FROM violations
+            WHERE created_at >= ? AND created_at <= ?
+        """, (from_str_out, to_str_out)).fetchone()[0] or 0
+
+        if total == 0:
+            clean_hours = total_hours
+            compliance_score = 100.0
+        else:
+            clean_hours = max(0.0, round(total_hours - violation_hours_count, 2))
+            compliance_score = round((clean_hours / total_hours) * 100.0, 1)
+
+        # 3. Busiest camera and per-camera distribution
+        cam_rows = c.execute("""
+            SELECT camera_id, COUNT(*) AS cnt
+            FROM violations
+            WHERE created_at >= ? AND created_at <= ?
+            GROUP BY camera_id
+            ORDER BY cnt DESC
+        """, (from_str_out, to_str_out)).fetchall()
+
+        if cam_rows:
+            busiest_camera = {"camera_id": cam_rows[0][0], "count": cam_rows[0][1]}
+        else:
+            busiest_camera = {"camera_id": "NONE", "count": 0}
+
+        by_camera = [{"camera_id": r[0], "count": r[1]} for r in cam_rows]
+
+        # 4. By type breakdown
+        type_rows = c.execute("""
+            SELECT type, COUNT(*) AS cnt
+            FROM violations
+            WHERE created_at >= ? AND created_at <= ?
+            GROUP BY type
+            ORDER BY cnt DESC
+        """, (from_str_out, to_str_out)).fetchall()
+
+        by_type = [{"type": r[0], "count": r[1]} for r in type_rows]
+
+        # 5. Daily trend (zero-filled across entire calendar range in Python)
+        day_rows = c.execute("""
+            SELECT strftime('%Y-%m-%d', created_at) AS day, COUNT(*) AS cnt
+            FROM violations
+            WHERE created_at >= ? AND created_at <= ?
+            GROUP BY day
+            ORDER BY day ASC
+        """, (from_str_out, to_str_out)).fetchall()
+        day_map = {r[0]: r[1] for r in day_rows}
+
+        daily_trend = []
+        curr_d = from_dt.date()
+        end_d = to_dt.date()
+        while curr_d <= end_d:
+            d_str = curr_d.strftime("%Y-%m-%d")
+            daily_trend.append({"date": d_str, "count": day_map.get(d_str, 0)})
+            curr_d += timedelta(days=1)
+
+        # 6. Hourly trend (zero-filled 00..23 in Python)
+        hr_rows = c.execute("""
+            SELECT strftime('%H', created_at) AS hr, COUNT(*) AS cnt
+            FROM violations
+            WHERE created_at >= ? AND created_at <= ?
+            GROUP BY hr
+        """, (from_str_out, to_str_out)).fetchall()
+        hr_map = {r[0]: r[1] for r in hr_rows}
+
+        hourly_trend = []
+        for h in range(24):
+            h_str = f"{h:02d}"
+            hourly_trend.append({
+                "hour": h_str,
+                "hour_num": h,
+                "count": hr_map.get(h_str, 0)
+            })
+
+    return {
+        "range": {
+            "from_date": from_str_out,
+            "to_date": to_str_out,
+            "total_hours": total_hours,
+            "clean_hours": clean_hours,
+            "violation_hours": violation_hours_count
+        },
+        "kpis": {
+            "total_violations": total,
+            "open_violations": open_cnt,
+            "resolved_violations": resolved,
+            "resolution_rate": resolution_rate,
+            "compliance_score": compliance_score,
+            "compliance_formula": "100 * (clean_hours / total_hours)",
+            "busiest_camera": busiest_camera
+        },
+        "trends": {
+            "daily": daily_trend,
+            "hourly": hourly_trend
+        },
+        "breakdown": {
+            "by_type": by_type,
+            "by_camera": by_camera
+        }
+    }
+
+
+def get_report_data(from_date=None, to_date=None, camera=None, type=None, limit=10, generated_by="operator") -> dict:
+    from_dt, to_dt, from_str_out, to_str_out = _parse_date_range(from_date, to_date, default_days=7)
+
+    where_clauses = ["created_at >= ?", "created_at <= ?"]
+    params = [from_str_out, to_str_out]
+
+    if camera:
+        where_clauses.append("camera_id = ?")
+        params.append(camera)
+    if type:
+        where_clauses.append("type = ?")
+        params.append(type)
+
+    where_sql = " AND ".join(where_clauses)
+
+    if to_dt.hour == 23 and to_dt.minute == 59 and to_dt.second == 59 and from_dt.hour == 0 and from_dt.minute == 0 and from_dt.second == 0:
+        total_hours = float(((to_dt.date() - from_dt.date()).days + 1) * 24)
+    else:
+        total_seconds = (to_dt - from_dt).total_seconds()
+        total_hours = max(1.0, round(total_seconds / 3600.0, 2))
+
+    with _conn() as c:
+        c.row_factory = sqlite3.Row
+
+        summary_row = c.execute(f"""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
+                SUM(CASE WHEN status = 'open' OR status IS NULL THEN 1 ELSE 0 END) as open_cnt
+            FROM violations
+            WHERE {where_sql}
+        """, params).fetchone()
+
+        total = summary_row["total"] or 0
+        resolved = summary_row["resolved"] or 0
+        open_cnt = summary_row["open_cnt"] or 0
+        resolution_rate = round((resolved / total) * 100.0, 1) if total > 0 else 100.0
+
+        violation_hours_count = c.execute(f"""
+            SELECT COUNT(DISTINCT strftime('%Y-%m-%d %H', created_at))
+            FROM violations
+            WHERE {where_sql}
+        """, params).fetchone()[0] or 0
+
+        if total == 0:
+            clean_hours = total_hours
+            compliance_score = 100.0
+        else:
+            clean_hours = max(0.0, round(total_hours - violation_hours_count, 2))
+            compliance_score = round((clean_hours / total_hours) * 100.0, 1)
+
+        by_type_rows = c.execute(f"""
+            SELECT type, COUNT(*) as cnt
+            FROM violations
+            WHERE {where_sql}
+            GROUP BY type
+            ORDER BY cnt DESC
+        """, params).fetchall()
+        by_type = [
+            {
+                "type": r["type"],
+                "count": r["cnt"],
+                "percentage": round((r["cnt"] / total) * 100.0, 1) if total > 0 else 0.0
+            }
+            for r in by_type_rows
+        ]
+
+        by_cam_rows = c.execute(f"""
+            SELECT camera_id, COUNT(*) as cnt
+            FROM violations
+            WHERE {where_sql}
+            GROUP BY camera_id
+            ORDER BY cnt DESC
+        """, params).fetchall()
+        by_camera = [
+            {
+                "camera_id": r["camera_id"],
+                "count": r["cnt"],
+                "percentage": round((r["cnt"] / total) * 100.0, 1) if total > 0 else 0.0
+            }
+            for r in by_cam_rows
+        ]
+
+        evidence_params = list(params) + [limit]
+        evidence_rows = c.execute(f"""
+            SELECT id, camera_id, type, confidence, snapshot, created_at, status, resolved_by
+            FROM violations
+            WHERE {where_sql}
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, evidence_params).fetchall()
+
+        top_evidence = []
+        for r in evidence_rows:
+            snap = r["snapshot"]
+            safe_snap = snap.replace("\\", "/").split("/")[-1] if snap else None
+            snap_url = f"/snapshots/{safe_snap}" if safe_snap else None
+            top_evidence.append({
+                "id": r["id"],
+                "camera_id": r["camera_id"],
+                "type": r["type"],
+                "confidence": r["confidence"],
+                "snapshot": r["snapshot"],
+                "snapshot_url": snap_url,
+                "created_at": r["created_at"],
+                "status": r["status"],
+                "resolved_by": r["resolved_by"]
+            })
+
+    return {
+        "metadata": {
+            "site": "SafetyLens Site Ops Command",
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "generated_by": generated_by,
+            "from_date": from_str_out,
+            "to_date": to_str_out,
+            "filters": {
+                "camera": camera,
+                "type": type
+            }
+        },
+        "summary": {
+            "total_violations": total,
+            "open_violations": open_cnt,
+            "resolved_violations": resolved,
+            "resolution_rate": resolution_rate,
+            "compliance_score": compliance_score
+        },
+        "by_type": by_type,
+        "by_camera": by_camera,
+        "top_evidence": top_evidence
+    }
+
+
+def export_report_csv(filters: dict) -> str:
+    from_date = filters.get("from_date")
+    to_date = filters.get("to_date")
+    camera = filters.get("camera")
+    vtype = filters.get("type")
+
+    from_dt, to_dt, from_str_out, to_str_out = _parse_date_range(from_date, to_date, default_days=7)
+
+    where_clauses = ["created_at >= ?", "created_at <= ?"]
+    params = [from_str_out, to_str_out]
+
+    if camera:
+        where_clauses.append("camera_id = ?")
+        params.append(camera)
+    if vtype:
+        where_clauses.append("type = ?")
+        params.append(vtype)
+
+    where_sql = " AND ".join(where_clauses)
+
+    with _conn() as c:
+        c.row_factory = sqlite3.Row
+        rows = c.execute(f"""
+            SELECT id, camera_id, type, confidence, snapshot, created_at, status, resolved_at, resolved_by
+            FROM violations
+            WHERE {where_sql}
+            ORDER BY created_at DESC
+        """, params).fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "camera_id", "type", "confidence", "snapshot", "created_at", "status", "resolved_at", "resolved_by"])
+    for r in rows:
+        writer.writerow([
+            r["id"],
+            r["camera_id"],
+            r["type"],
+            r["confidence"],
+            r["snapshot"],
+            r["created_at"],
+            r["status"],
+            r["resolved_at"] or "",
+            r["resolved_by"] or ""
+        ])
+    return output.getvalue()

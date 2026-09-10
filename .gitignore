@@ -7,6 +7,7 @@ __pycache__/
 .env
 
 # Databases / generated data
+*.db
 backend/*.db
 backend/snapshots/
 backend/runs/

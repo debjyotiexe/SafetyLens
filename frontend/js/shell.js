@@ -37,6 +37,8 @@ function buildShell(me) {
 
   const items = [
     ["command", "COMMAND", "index.html"],
+    ["analytics", "ANALYTICS", "analytics.html"],
+    ["reports", "REPORTS", "reports.html"],
     ["incidents", "INCIDENTS", "incidents.html"],
     ...(me.role === "admin" ? [
         ["cameras", "CAMERAS", "cameras.html"],
@@ -44,7 +46,7 @@ function buildShell(me) {
         ["settings", "SETTINGS", "settings.html"]
     ] : []),
   ];
-  const soon = ["ZONES", "REPORTS", "ANALYTICS"];
+  const soon = ["ZONES"];
 
   const nav = document.createElement("aside");
   nav.className = "sidebar";
