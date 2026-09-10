@@ -1,3 +1,4 @@
+from PIL import GimpGradientFile
 from abc import ABC, abstractmethod
 import os
 import time
@@ -14,8 +15,10 @@ class StorageBackend(ABC):
 
     @abstractmethod
     def url(self, ref: str) -> str:
-        """Return a URL path to serve/access the stored artifact."""
-        pass
+        """Convert storage reference to a URL path."""
+    # Cross-platform basename: handle both / and \ separators
+        name = ref.replace("\\", "/").split("/")[-1]
+        return f"/snapshots/{name}"
 
     @abstractmethod
     def delete(self, ref: str) -> bool:
