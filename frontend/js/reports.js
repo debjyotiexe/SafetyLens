@@ -90,6 +90,15 @@ function renderReport(data) {
   else if (s.compliance_score >= 75) scoreEl.className = "rep-val amber";
   else scoreEl.className = "rep-val red";
 
+  const totalHours = s.total_hours != null ? (Number.isInteger(s.total_hours) ? s.total_hours : Math.round(s.total_hours)) : "--";
+  const dirtyHours = s.dirty_hours != null ? s.dirty_hours : 0;
+  const density = s.violations_per_dirty_hour != null ? s.violations_per_dirty_hour : 0;
+
+  const ctxHoursEl = $("rep-k-context-hours");
+  const ctxDensityEl = $("rep-k-context-density");
+  if (ctxHoursEl) ctxHoursEl.textContent = `${dirtyHours} of ${totalHours} monitored hours contained violations`;
+  if (ctxDensityEl) ctxDensityEl.textContent = `DENSITY: ${density} violations / dirty hour`;
+
   // Table by Type
   const tbodyType = document.querySelector("#rep-table-type tbody");
   tbodyType.innerHTML = "";

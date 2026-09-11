@@ -5,6 +5,10 @@ import config
 import pipeline
 from compliance import make_compliance_state
 from database import list_cameras, upsert_camera, update_camera_status, delete_camera
+try:
+    from zones import clear_camera_zone_state
+except ImportError:
+    from backend.zones import clear_camera_zone_state
 
 class CameraManager:
     def __init__(self, model, relevant_ids):
@@ -63,6 +67,7 @@ class CameraManager:
                 self.threads[cam_id].join(timeout=2.0)
                 del self.threads[cam_id]
             del self.stop_events[cam_id]
+        clear_camera_zone_state(cam_id)
         update_camera_status(cam_id, 'offline')
         
     def stop_all(self):

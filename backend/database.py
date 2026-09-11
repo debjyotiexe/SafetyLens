@@ -1,4 +1,4 @@
-import sqlite3, hashlib, secrets, csv, io, hmac, time
+import sqlite3, hashlib, secrets, csv, io, hmac, time, json
 from datetime import datetime, timedelta
 import config
 
@@ -115,9 +115,28 @@ def init_db():
             error_msg TEXT,
             created_at DATETIME DEFAULT (datetime('now','localtime'))
         );
+        CREATE TABLE IF NOT EXISTS zones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            camera_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            points TEXT NOT NULL,
+            requirement TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT (datetime('now','localtime'))
+        );
         CREATE INDEX IF NOT EXISTS idx_violations_created_at ON violations(created_at);
         CREATE INDEX IF NOT EXISTS idx_violations_cam_type ON violations(camera_id, type);
+        CREATE INDEX IF NOT EXISTS idx_zones_camera ON zones(camera_id);
         """)
+
+        # Robust migration for zones table
+        z_cols = {row[1] for row in c.execute("PRAGMA table_info(zones)").fetchall()}
+        if z_cols:
+            if "enabled" not in z_cols:
+                c.execute("ALTER TABLE zones ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1")
+            if "created_at" not in z_cols:
+                c.execute("ALTER TABLE zones ADD COLUMN created_at TEXT")
+                c.execute("UPDATE zones SET created_at = datetime('now','localtime') WHERE created_at IS NULL OR created_at = ''")
 
         # Robust migration for violations table
         v_cols = {row[1] for row in c.execute("PRAGMA table_info(violations)").fetchall()}
@@ -255,6 +274,86 @@ def update_camera_status(cam_id, status, error_msg=None):
 def delete_camera(cam_id):
     with _conn() as c:
         c.execute("DELETE FROM cameras WHERE id = ?", (cam_id,))
+        c.execute("DELETE FROM zones WHERE camera_id = ?", (cam_id,))
+
+# ---------- zones ----------
+def create_zone(camera_id: str, name: str, points: list | str, requirement: str) -> dict:
+    if isinstance(points, list):
+        points_str = json.dumps(points)
+        points_list = points
+    else:
+        points_str = points
+        try:
+            points_list = json.loads(points)
+        except Exception:
+            points_list = []
+
+    with _conn() as c:
+        cur = c.execute(
+            """INSERT INTO zones (camera_id, name, points, requirement, enabled, created_at)
+               VALUES (?, ?, ?, ?, 1, datetime('now','localtime'))""",
+            (camera_id, name, points_str, requirement)
+        )
+        zone_id = cur.lastrowid
+        c.row_factory = sqlite3.Row
+        row = c.execute("SELECT * FROM zones WHERE id = ?", (zone_id,)).fetchone()
+        res = dict(row)
+        res["points"] = points_list
+        return res
+
+def get_zones(camera_id: str = None, enabled_only: bool = False) -> list[dict]:
+    query = "SELECT id, camera_id, name, points, requirement, enabled, created_at FROM zones WHERE 1=1"
+    params = []
+    if camera_id:
+        query += " AND camera_id = ?"
+        params.append(camera_id)
+    if enabled_only:
+        query += " AND enabled = 1"
+    query += " ORDER BY created_at ASC, id ASC"
+
+    with _conn() as c:
+        c.row_factory = sqlite3.Row
+        rows = c.execute(query, params).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["points"] = json.loads(d["points"])
+            except Exception:
+                d["points"] = []
+            result.append(d)
+        return result
+
+def get_zone_by_id(zone_id: int) -> dict | None:
+    with _conn() as c:
+        c.row_factory = sqlite3.Row
+        row = c.execute("SELECT id, camera_id, name, points, requirement, enabled, created_at FROM zones WHERE id = ?", (zone_id,)).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d["points"] = json.loads(d["points"])
+        except Exception:
+            d["points"] = []
+        return d
+
+def get_zone(zone_id: int) -> dict | None:
+    return get_zone_by_id(zone_id)
+
+def toggle_zone(zone_id: int) -> dict | None:
+    with _conn() as c:
+        cur = c.execute("UPDATE zones SET enabled = CASE WHEN enabled = 1 THEN 0 ELSE 1 END WHERE id = ?", (zone_id,))
+        if cur.rowcount == 0:
+            return None
+    return get_zone_by_id(zone_id)
+
+def delete_zone_by_id(zone_id: int) -> bool:
+    with _conn() as c:
+        cur = c.execute("DELETE FROM zones WHERE id = ?", (zone_id,))
+        return cur.rowcount > 0
+
+def delete_zone(zone_id: int) -> bool:
+    return delete_zone_by_id(zone_id)
 
 class DuplicateUserError(Exception):
     pass
@@ -477,12 +576,15 @@ def get_analytics_summary(from_date=None, to_date=None) -> dict:
         open_cnt = total - resolved
         resolution_rate = round((resolved / total) * 100.0, 1) if total > 0 else 100.0
 
-        # 2. Distinct violation hours
+        # 2. Distinct violation hours (dirty hours)
         violation_hours_count = c.execute("""
             SELECT COUNT(DISTINCT strftime('%Y-%m-%d %H', created_at))
             FROM violations
             WHERE created_at >= ? AND created_at <= ?
         """, (from_str_out, to_str_out)).fetchone()[0] or 0
+
+        dirty_hours = violation_hours_count
+        violations_per_dirty_hour = round(total / dirty_hours, 1) if dirty_hours > 0 else 0
 
         if total == 0:
             clean_hours = total_hours
@@ -569,6 +671,8 @@ def get_analytics_summary(from_date=None, to_date=None) -> dict:
             "resolution_rate": resolution_rate,
             "compliance_score": compliance_score,
             "compliance_formula": "100 * (clean_hours / total_hours)",
+            "dirty_hours": dirty_hours,
+            "violations_per_dirty_hour": violations_per_dirty_hour,
             "busiest_camera": busiest_camera
         },
         "trends": {
@@ -625,6 +729,9 @@ def get_report_data(from_date=None, to_date=None, camera=None, type=None, limit=
             FROM violations
             WHERE {where_sql}
         """, params).fetchone()[0] or 0
+
+        dirty_hours = violation_hours_count
+        violations_per_dirty_hour = round(total / dirty_hours, 1) if dirty_hours > 0 else 0
 
         if total == 0:
             clean_hours = total_hours
@@ -708,7 +815,10 @@ def get_report_data(from_date=None, to_date=None, camera=None, type=None, limit=
             "open_violations": open_cnt,
             "resolved_violations": resolved,
             "resolution_rate": resolution_rate,
-            "compliance_score": compliance_score
+            "compliance_score": compliance_score,
+            "total_hours": total_hours,
+            "dirty_hours": dirty_hours,
+            "violations_per_dirty_hour": violations_per_dirty_hour
         },
         "by_type": by_type,
         "by_camera": by_camera,

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafetyLens // Geofencing Zones</title>
+    <link rel="stylesheet" href="css/style.css?v=7" />
+  </head>
+  <body data-page="zones">
+    <div class="hazard top"></div>
+    <header class="topbar">
+      <div class="brand">
+        <button
+          class="btn hamburger"
+          title="Toggle sidebar"
+          onclick="document.body.classList.toggle('side-hidden')"
+        >
+          ≡
+        </button>
+        <div class="logo">SAFETY<span>LENS</span></div>
+      </div>
+      <div class="tag">GEOFENCING // ZONES</div>
+      <div class="spacer"></div>
+      <div class="led"></div>
+    </header>
+
+    <main class="grid" style="grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);">
+      <!-- Left Panel: Stream & Canvas Calibration -->
+      <section>
+        <div class="panel">
+          <h3>// CALIBRATION CANVAS & ZONE EDITOR</h3>
+          <div class="filter-bar" style="margin-bottom: 10px;">
+            <select id="camera-select" style="flex: 2;">
+              <option value="">LOADING CAMERAS...</option>
+            </select>
+            <button class="btn" id="btn-refresh-cam" onclick="refreshSnapshot()">REFRESH FRAME ⟳</button>
+          </div>
+
+          <div class="zone-canvas-container" id="canvas-container">
+            <canvas id="zone-canvas" width="800" height="450"></canvas>
+          </div>
+
+          <div class="canvas-hint-bar">
+            <span id="canvas-status">CLICK ON CANVAS TO ADD POLYGON VERTICES &middot; DOUBLE-CLICK OR ENTER TO CLOSE</span>
+            <span id="coord-display">CURSOR: [0.000, 0.000]</span>
+          </div>
+
+          <div class="drawing-controls" style="display: flex; gap: 8px; margin-top: 10px;">
+            <button class="btn active" id="btn-save-zone-left" onclick="saveCurrentZone()" style="display: none;">[SAVE ZONE]</button>
+            <button class="btn danger" id="btn-cancel-draw" onclick="cancelDrawing()" style="display: none;">[CANCEL] (ESC)</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Panel: Zone Creation Form & List -->
+      <section>
+        <!-- Form Panel: Revealed when a polygon is closed -->
+        <div class="panel" id="zone-form-panel" style="display: none; margin-bottom: 14px; border-color: var(--amber);">
+          <h3>// CONFIGURE NEW ZONE</h3>
+          <div class="field">
+            <label for="zone-name">ZONE NAME / LOCATION</label>
+            <input type="text" id="zone-name" placeholder="e.g. Loading Dock North, Welding Bay" maxlength="64" />
+          </div>
+          <div class="field">
+            <label for="zone-req">SAFETY COMPLIANCE REQUIREMENT</label>
+            <select id="zone-req" class="ctl-select" style="width: 100%;">
+              <option value="HELMET">HELMET (Mandatory Hardhat)</option>
+              <option value="VEST">VEST (Mandatory High-Vis Vest)</option>
+              <option value="GLOVES">GLOVES (Mandatory Protective Gloves)</option>
+              <option value="BOOTS">BOOTS (Mandatory Steel-Toe Boots)</option>
+              <option value="GOGGLES">GOGGLES (Mandatory Safety Eyewear)</option>
+              <option value="ANY_PPE">ANY_PPE (Full PPE Envelope)</option>
+              <option value="RESTRICTED">RESTRICTED (Zero-Worker Exclusion Zone)</option>
+            </select>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 14px;">
+            <button class="btn active" id="btn-create-zone" onclick="saveCurrentZone()" style="flex: 1;">[CREATE ZONE]</button>
+            <button class="btn danger" onclick="cancelDrawing()">[CANCEL] (ESC)</button>
+          </div>
+        </div>
+
+        <!-- Configured Zones Table Panel -->
+        <div class="panel">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3>// ACTIVE ZONES FOR CAMERA</h3>
+            <span id="zone-count" class="tag">0 ZONES</span>
+          </div>
+          <table class="cam-table" id="zones-table">
+            <thead>
+              <tr>
+                <th>NAME</th>
+                <th>REQUIREMENT</th>
+                <th>STATUS</th>
+                <th data-admin>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="4" style="color: var(--muted); text-align: center; padding: 18px;">SELECT A CAMERA TO VIEW ZONES</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div class="hazard bottom"></div>
+    <script src="js/shell.js?v=7"></script>
+    <script src="js/zones.js?v=7"></script>
+  </body>
+</html>

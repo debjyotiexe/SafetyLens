@@ -12,7 +12,8 @@ from database import (
     init_db, log_violation, get_stats, verify_login, check_token,
     get_incidents, resolve_incident, export_incidents_csv, update_camera_status,
     register_user, DuplicateUserError, revoke_token, list_users, set_user_role, toggle_user_active,
-    get_analytics_summary, get_report_data, export_report_csv
+    get_analytics_summary, get_report_data, export_report_csv,
+    create_zone, get_zones, toggle_zone, delete_zone_by_id
 )
 from pipeline import process_frame
 from alert_dispatch import dispatcher
@@ -277,6 +278,67 @@ def api_camera_snapshot(cam_id: str, user=Depends(get_user)):
     if not snap:
         raise HTTPException(404, "No snapshot available")
     return Response(content=snap, media_type="image/jpeg")
+
+# ---------- zone management routes ----------
+class ZoneCreateBody(BaseModel):
+    camera_id: str
+    name: str
+    points: list[list[float]]
+    requirement: str
+
+VALID_ZONE_REQUIREMENTS = {
+    "HELMET", "VEST", "GLOVES", "BOOTS", "GOGGLES", "ANY_PPE", "RESTRICTED"
+}
+
+def validate_zone_create_body(body: ZoneCreateBody):
+    if not body.camera_id or not body.camera_id.strip():
+        raise HTTPException(400, "camera_id is required")
+    if not body.name or not (1 <= len(body.name.strip()) <= 64):
+        raise HTTPException(400, "name must be between 1 and 64 characters")
+    if body.requirement not in VALID_ZONE_REQUIREMENTS:
+        raise HTTPException(400, f"Invalid requirement: {body.requirement}")
+    if not body.points or len(body.points) < 3:
+        raise HTTPException(400, "points must contain at least 3 vertices")
+    for pt in body.points:
+        if not isinstance(pt, (list, tuple)) or len(pt) != 2:
+            raise HTTPException(400, "Each point must be an [x, y] coordinate pair")
+        x, y = pt
+        if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+            raise HTTPException(400, f"Point [{x}, {y}] out of bounds (0.0..1.0)")
+
+@app.get("/api/zones")
+def api_get_zones(camera: str = None, user=Depends(get_user)):
+    return get_zones(camera_id=camera)
+
+@app.post("/api/zones", status_code=201)
+def api_create_zone(body: ZoneCreateBody, user=Depends(get_admin)):
+    validate_zone_create_body(body)
+    zone = create_zone(body.camera_id.strip(), body.name.strip(), body.points, body.requirement)
+    return {"status": "created", "zone": zone}
+
+@app.post("/api/zones/{zone_id}/toggle")
+def api_toggle_zone(zone_id: int, user=Depends(get_admin)):
+    zone = toggle_zone(zone_id)
+    if not zone:
+        raise HTTPException(404, "Zone not found")
+    try:
+        from zones import clear_zone_state
+        clear_zone_state(zone_id)
+    except Exception:
+        pass
+    return {"status": "toggled", "zone": zone}
+
+@app.delete("/api/zones/{zone_id}")
+def api_delete_zone(zone_id: int, user=Depends(get_admin)):
+    deleted = delete_zone_by_id(zone_id)
+    if not deleted:
+        raise HTTPException(404, "Zone not found")
+    try:
+        from zones import clear_zone_state
+        clear_zone_state(zone_id)
+    except Exception:
+        pass
+    return {"status": "deleted", "id": zone_id}
 
 # ---------- live stream ----------
 @app.websocket("/ws/stream")

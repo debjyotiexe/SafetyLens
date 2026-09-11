@@ -15,6 +15,10 @@ import config
 from compliance import check_compliance
 from database import log_violation
 from alert_dispatch import dispatcher
+try:
+    from zones import check_zones, draw_zones
+except ImportError:
+    from backend.zones import check_zones, draw_zones
 
 # ---------- visual helpers (moved from main.py) ----------
 COLORS = {
@@ -98,14 +102,25 @@ def process_frame(frame_bytes, camera_id, model, relevant_ids, settings,
 
     # --- compliance ---
     violations = check_compliance(detections, state=compliance_state)
+    zone_breaches = check_zones(camera_id, detections, violations, frame.shape[:2], compliance_state)
+
     for v in violations:
         snap = save_snapshot(frame, v)
         vid = log_violation(v["type"], v["conf"], snap, camera_id)
         print(f"!!! VIOLATION #{vid}: {v['type']} ({v['conf']:.2f})")
         dispatcher.dispatch(v, snap, camera_id)
 
+    for b in zone_breaches:
+        if b.get("type") == "ZONE_BREACH":
+            snap = save_snapshot(frame, b)
+            vid = log_violation(b["type"], b["conf"], snap, camera_id)
+            print(f"!!! ZONE BREACH #{vid}: {b['type']} ({b.get('zone_name', '')})")
+            dispatcher.dispatch(b, snap, camera_id)
+            violations.append(b)
+
     # --- annotate ---
     annotated = draw_boxes(frame.copy(), detections, violations)
+    annotated = draw_zones(annotated, camera_id)
     h, w = annotated.shape[:2]
     if w > 800:
         scale = 800 / w

@@ -61,6 +61,8 @@ def test_analytics_math_verification():
     assert kpis["resolved_violations"] == 4
     assert kpis["open_violations"] == 6
     assert kpis["resolution_rate"] == 40.0
+    assert kpis["dirty_hours"] == 9
+    assert kpis["violations_per_dirty_hour"] == 1.1
     assert kpis["busiest_camera"]["camera_id"] == "cam_01"
     assert kpis["busiest_camera"]["count"] == 7
 
@@ -146,7 +148,40 @@ def test_empty_range():
     assert kpis["resolved_violations"] == 0
     assert kpis["resolution_rate"] == 100.0
     assert kpis["compliance_score"] == 100.0
+    assert kpis["dirty_hours"] == 0
+    assert kpis["violations_per_dirty_hour"] == 0
     assert kpis["busiest_camera"] == {"camera_id": "NONE", "count": 0}
+
+
+def test_compliance_index_context():
+    # Seeded: 10 violations in 2 distinct hours -> dirty_hours=2, density=5.0
+    with _conn() as c:
+        for _ in range(5):
+            c.execute("""
+                INSERT INTO violations (camera_id, type, confidence, snapshot, created_at, status)
+                VALUES ('cam_01', 'NO_HELMET', 0.9, 's.jpg', '2026-09-08 10:10:00', 'open')
+            """)
+        for _ in range(5):
+            c.execute("""
+                INSERT INTO violations (camera_id, type, confidence, snapshot, created_at, status)
+                VALUES ('cam_02', 'NO_VEST', 0.9, 's.jpg', '2026-09-08 15:40:00', 'resolved')
+            """)
+
+    res = client.get("/api/analytics/summary?from_date=2026-09-08&to_date=2026-09-08")
+    assert res.status_code == 200
+    data = res.json()
+    kpis = data["kpis"]
+    assert kpis["total_violations"] == 10
+    assert kpis["dirty_hours"] == 2
+    assert kpis["violations_per_dirty_hour"] == 5.0
+
+    # Also verify /api/reports/generate
+    rep_res = client.get("/api/reports/generate?from_date=2026-09-08&to_date=2026-09-08")
+    assert rep_res.status_code == 200
+    rep_summary = rep_res.json()["summary"]
+    assert rep_summary["total_violations"] == 10
+    assert rep_summary["dirty_hours"] == 2
+    assert rep_summary["violations_per_dirty_hour"] == 5.0
 
 
 def test_reports_generate():
@@ -166,6 +201,9 @@ def test_reports_generate():
     assert summary["resolved_violations"] == 3
     assert summary["open_violations"] == 4
     assert summary["resolution_rate"] == 42.9
+    assert summary["dirty_hours"] == 6
+    assert summary["violations_per_dirty_hour"] == 1.2
+    assert summary["total_hours"] == 72.0
 
     # Evidence list
     evidence = data["top_evidence"]
@@ -195,3 +233,34 @@ def test_auth_required():
     for path in ["/api/analytics/summary", "/api/reports/generate", "/api/reports/export"]:
         res = client.get(path)
         assert res.status_code == 401
+
+
+def test_analytics_and_reports_static_serving():
+    # Verify analytics.html
+    res_a = client.get("/analytics.html")
+    assert res_a.status_code == 200
+    assert "chart.umd.js?v=8" in res_a.text
+    assert "analytics.js?v=8" in res_a.text
+    assert "analytics-error" in res_a.text
+    assert "no-data-banner" in res_a.text
+    assert "k-context-hours" in res_a.text
+
+    # Verify js/analytics.js
+    res_ajs = client.get("/js/analytics.js")
+    assert res_ajs.status_code == 200
+    assert "showErrorPanel" in res_ajs.text
+    assert "setEmptyState" in res_ajs.text
+    assert "DENSITY:" in res_ajs.text
+
+    # Verify reports.html
+    res_r = client.get("/reports.html")
+    assert res_r.status_code == 200
+    assert "reports.js?v=8" in res_r.text
+    assert "rep-k-context-hours" in res_r.text
+
+    # Verify js/reports.js
+    res_rjs = client.get("/js/reports.js")
+    assert res_rjs.status_code == 200
+    assert "rep-k-context-hours" in res_rjs.text
+    assert "DENSITY:" in res_rjs.text
+

@@ -42,11 +42,12 @@ function buildShell(me) {
     ["incidents", "INCIDENTS", "incidents.html"],
     ...(me.role === "admin" ? [
         ["cameras", "CAMERAS", "cameras.html"],
+        ["zones", "ZONES", "zones.html"],
         ["users", "USERS", "users.html"],
         ["settings", "SETTINGS", "settings.html"]
     ] : []),
   ];
-  const soon = ["ZONES"];
+  const soon = [];
 
   const nav = document.createElement("aside");
   nav.className = "sidebar";
